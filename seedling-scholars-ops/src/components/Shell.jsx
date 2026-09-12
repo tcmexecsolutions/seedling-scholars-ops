@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient.js';
 import Icon from '../Icon.jsx';
-import { IconBadge, Avatar } from '../ui.jsx';
+import { IconBadge, BrandBlob, Avatar } from '../ui.jsx';
 import logo from '../assets/logo.png';
 import CapacityView from '../views/CapacityView.jsx';
 import CredentialsView from '../views/CredentialsView.jsx';
@@ -22,13 +22,9 @@ const ADMIN_TABS = [
   { id: 'settings', label: 'Settings', icon: 'gear' },
 ];
 
-const ROLE_LABEL = { admin: 'Network Admin', account_holder: 'Account Holder', director: 'Site Director', teacher: 'Teacher' };
-
 export default function Shell({ profile }) {
   const isAdmin = profile.role === 'admin';
-  const isAccountHolder = profile.role === 'account_holder';
   const [sites, setSites] = useState([]);
-  const [mySiteIds, setMySiteIds] = useState(null); // null = not an account holder / not loaded yet
   const [selectedSiteId, setSelectedSiteId] = useState(profile.site_id || '');
   const [tab, setTab] = useState('capacity');
   const [loadingSites, setLoadingSites] = useState(true);
@@ -36,18 +32,9 @@ export default function Shell({ profile }) {
   useEffect(() => {
     async function loadSites() {
       const { data, error } = await supabase.from('sites').select('id, name, city, state').order('name');
-      if (!error && data) setSites(data);
-
-      if (isAccountHolder) {
-        const { data: assignments } = await supabase
-          .from('staff_site_assignments')
-          .select('site_id')
-          .eq('profile_id', profile.id);
-        const ids = (assignments || []).map((a) => a.site_id);
-        setMySiteIds(ids);
-        if (!selectedSiteId && ids.length) setSelectedSiteId(ids[0]);
-      } else if (!selectedSiteId && data?.length && isAdmin) {
-        setSelectedSiteId(data[0].id);
+      if (!error && data) {
+        setSites(data);
+        if (!selectedSiteId && data.length) setSelectedSiteId(data[0].id);
       }
       setLoadingSites(false);
     }
@@ -55,18 +42,12 @@ export default function Shell({ profile }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // The houses this person can switch between: every house for an admin,
-  // just their assigned ones for an account holder, none (single fixed
-  // house shown separately below) for a director or teacher.
-  const switchableSites = isAdmin ? sites : isAccountHolder ? sites.filter((s) => (mySiteIds || []).includes(s.id)) : [];
-  const accessibleSiteIds = isAdmin ? sites.map((s) => s.id) : isAccountHolder ? (mySiteIds || []) : profile.site_id ? [profile.site_id] : [];
-
   const selectedSite = sites.find((s) => s.id === selectedSiteId);
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
       <aside
-        className="surface sidebar-navy"
+        className="surface"
         style={{
           width: 240,
           margin: 12,
@@ -80,6 +61,7 @@ export default function Shell({ profile }) {
           overflow: 'hidden',
         }}
       >
+        <BrandBlob tone="sage" size={180} style={{ top: -90, right: -80 }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 4px', position: 'relative', zIndex: 1 }}>
           <img src={logo} alt="TCM's Seedling Scholars" style={{ width: 38, height: 38, objectFit: 'contain' }} />
           <div>
@@ -92,7 +74,7 @@ export default function Shell({ profile }) {
           </div>
         </div>
 
-        {isAdmin || isAccountHolder ? (
+        {isAdmin ? (
           <div style={{ position: 'relative', zIndex: 1 }}>
             <label style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Viewing house
@@ -104,8 +86,7 @@ export default function Shell({ profile }) {
               onChange={(e) => setSelectedSiteId(e.target.value)}
             >
               {loadingSites && <option>Loading…</option>}
-              {!loadingSites && switchableSites.length === 0 && <option>No houses assigned yet</option>}
-              {switchableSites.map((s) => (
+              {sites.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name} — {s.city}, {s.state}
                 </option>
@@ -148,11 +129,11 @@ export default function Shell({ profile }) {
 
         <div style={{ marginTop: 'auto', paddingTop: 12, borderTop: '1px solid var(--border)', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 9 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-            <Avatar name={profile.full_name} tone={isAdmin ? 'accent' : 'sage'} size={32} />
+            <Avatar name={profile.full_name} tone={isAdmin ? 'navy' : 'sage'} size={32} />
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 12.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile.full_name}</div>
               <div className="chip chip-accent" style={{ marginTop: 3 }}>
-                {isAdmin ? ROLE_LABEL.admin : profile.staff_title || ROLE_LABEL[profile.role] || profile.role}
+                {isAdmin ? 'Network Admin' : profile.staff_title || (profile.role === 'director' ? 'Site Director' : 'Teacher')}
               </div>
             </div>
           </div>
@@ -166,7 +147,7 @@ export default function Shell({ profile }) {
         {tab === 'settings' && isAdmin ? (
           <SettingsView />
         ) : tab === 'alerts' ? (
-          <AlertsView profile={profile} accessibleSiteIds={accessibleSiteIds} />
+          <AlertsView profile={profile} />
         ) : selectedSiteId ? (
           <>
             {tab === 'capacity' && <CapacityView siteId={selectedSiteId} isAdmin={isAdmin} profile={profile} />}

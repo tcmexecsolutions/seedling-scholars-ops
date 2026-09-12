@@ -19,10 +19,10 @@ export default function Login() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative', overflow: 'hidden', background: 'var(--ink)' }}>
-      <BrandBlob tone="sage-glow" size={360} style={{ top: -140, left: -110 }} />
-      <BrandBlob tone="accent-glow" size={260} style={{ bottom: -100, right: -70 }} />
-      <BrandBlob tone="taupe-glow" size={160} style={{ bottom: 60, left: '8%' }} />
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative', overflow: 'hidden' }}>
+      <BrandBlob tone="sage" size={360} style={{ top: -140, left: -110 }} />
+      <BrandBlob tone="accent" size={260} style={{ bottom: -100, right: -70 }} />
+      <BrandBlob tone="taupe" size={160} style={{ bottom: 60, left: '8%' }} />
       <div className="surface" style={{ width: '100%', maxWidth: 380, padding: 32, position: 'relative', zIndex: 1 }}>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <img
