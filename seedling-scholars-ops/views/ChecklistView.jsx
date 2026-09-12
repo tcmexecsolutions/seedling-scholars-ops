@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient.js';
+import { SectionHeader, IconBadge } from '../ui.jsx';
 
 function todayStr() {
   const d = new Date();
@@ -89,8 +90,8 @@ export default function ChecklistView({ siteId, profile }) {
 
   return (
     <div className="surface" style={{ padding: 20, maxWidth: 640 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 className="font-display" style={{ fontSize: 17, fontWeight: 700 }}>Daily Opening Safety Walkthrough</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <SectionHeader icon="check" tone={pct === 100 ? 'good' : 'accent'} title="Daily Opening Safety Walkthrough" size="sm" />
         <span className="font-mono" style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink-soft)' }}>
           {done}/{total}
         </span>
@@ -126,8 +127,12 @@ export default function ChecklistView({ siteId, profile }) {
           color: pct === 100 ? 'var(--good-ink)' : 'var(--warn-ink)',
           fontSize: 12.5,
           fontWeight: 700,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 9,
         }}
       >
+        <IconBadge icon={pct === 100 ? 'check' : 'bell'} tone={pct === 100 ? 'good' : 'warn'} size="sm" />
         {pct === 100 ? 'Site cleared for morning intake.' : `Not yet cleared — ${total - done} item${total - done === 1 ? '' : 's'} remaining.`}
       </div>
     </div>

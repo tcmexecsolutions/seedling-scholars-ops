@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient.js';
+import { SectionHeader, EmptyState, IconBadge } from '../ui.jsx';
 
 function credStatus(dateStr) {
   if (!dateStr) return 'missing';
@@ -25,14 +26,21 @@ function hoursStatus(hoursCompleted, requiredHours, periodEnd) {
 const SEVERITY_ORDER = { expired: 0, expiring: 1, missing: 2 };
 const SEVERITY_CLASS = { expired: 'chip-bad', expiring: 'chip-warn', missing: 'chip-neutral' };
 const SEVERITY_LABEL = { expired: 'Overdue', expiring: 'Coming up', missing: 'Not on file' };
+const SEVERITY_TONE = { expired: 'bad', expiring: 'warn', missing: 'taupe' };
+const SEVERITY_ICON = { expired: 'bell', expiring: 'bell', missing: 'book' };
 
 function currentPeriod() {
   const year = new Date().getFullYear();
   return { period_start: `${year}-01-01`, period_end: `${year}-12-31` };
 }
 
-export default function AlertsView({ profile }) {
+export default function AlertsView({ profile, accessibleSiteIds }) {
   const isAdmin = profile.role === 'admin';
+  // Admins and account holders (and directors, who run their site) see every
+  // staff member's compliance at the houses they can access — only a teacher
+  // is limited to just their own items.
+  const seesEveryoneAtSite = profile.role !== 'teacher';
+  const siteIds = accessibleSiteIds || (profile.site_id ? [profile.site_id] : []);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -49,7 +57,7 @@ export default function AlertsView({ profile }) {
       { data: houseRows },
     ] = await Promise.all([
       supabase.from('sites').select('id, name, state'),
-      supabase.from('compliance_requirements').select('*').eq('active', true),
+      supabase.from('compliance_requirements').select('*').eq('status', 'active'),
       supabase.from('profiles').select('id, full_name, role, site_id'),
       supabase.from('staff_compliance_dates').select('profile_id, requirement_id, expires_on'),
       supabase.from('staff_training_hours').select('profile_id, requirement_id, hours_completed, period_end').eq('period_start', period_start),
@@ -67,7 +75,9 @@ export default function AlertsView({ profile }) {
 
     const out = [];
 
-    const relevantStaff = (profiles || []).filter((p) => p.site_id && (isAdmin || p.id === profile.id));
+    const relevantStaff = (profiles || []).filter(
+      (p) => p.site_id && siteIds.includes(p.site_id) && (seesEveryoneAtSite || p.id === profile.id)
+    );
     relevantStaff.forEach((p) => {
       const site = sitesById[p.site_id];
       if (!site?.state) return;
@@ -102,7 +112,7 @@ export default function AlertsView({ profile }) {
       });
     });
 
-    const relevantSites = isAdmin ? (sites || []) : (sites || []).filter((s) => s.id === profile.site_id);
+    const relevantSites = (sites || []).filter((s) => siteIds.includes(s.id));
     relevantSites.forEach((site) => {
       if (!site.state) return;
       const houseReqs = Object.values(reqsById).filter((r) => r.state === site.state && r.requirement_kind === 'house_license');
@@ -128,7 +138,7 @@ export default function AlertsView({ profile }) {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile.id]);
+  }, [profile.id, siteIds.join(',')]);
 
   if (loading) return <div style={{ padding: 24, color: 'var(--ink-faint)' }}>Checking compliance…</div>;
 
@@ -138,14 +148,16 @@ export default function AlertsView({ profile }) {
 
   return (
     <div className="surface" style={{ padding: 20, maxWidth: 780 }}>
-      <h2 className="font-display" style={{ fontSize: 17, fontWeight: 700, marginBottom: 6 }}>
-        {isAdmin ? 'Compliance Alerts — All Houses' : 'Your Compliance'}
-      </h2>
-      <div style={{ fontSize: 12, color: 'var(--ink-faint)', marginBottom: 14 }}>
-        {isAdmin
-          ? 'Anything overdue, coming up in the next 30–60 days, or missing across every house.'
-          : 'Anything of yours that’s overdue, coming up soon, or missing, plus your house’s own license status.'}
-      </div>
+      <SectionHeader
+        icon="bell"
+        tone={overdue ? 'bad' : soon ? 'warn' : 'good'}
+        title={isAdmin ? 'Compliance Alerts — All Houses' : seesEveryoneAtSite && siteIds.length > 1 ? 'Compliance Alerts — Your Houses' : seesEveryoneAtSite ? 'Compliance Alerts — Your House' : 'Your Compliance'}
+        subtitle={
+          seesEveryoneAtSite
+            ? `Anything overdue, coming up in the next 30–60 days, or missing across ${isAdmin ? 'every house' : siteIds.length > 1 ? 'the houses you cover' : 'your house'}.`
+            : 'Anything of yours that’s overdue, coming up soon, or missing, plus your house’s own license status.'
+        }
+      />
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <span className="chip chip-bad">{overdue} overdue</span>
@@ -154,13 +166,12 @@ export default function AlertsView({ profile }) {
       </div>
 
       {items.length === 0 ? (
-        <div style={{ padding: '14px 0', color: 'var(--good-ink)', fontSize: 13, fontWeight: 600 }}>
-          Nothing needs attention right now.
-        </div>
+        <EmptyState icon="check" tone="good" title="Nothing needs attention right now" />
       ) : (
         <div className="divide-token">
           {items.map((it, i) => (
-            <div key={i} style={{ padding: '11px 0', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div key={i} style={{ padding: '11px 0', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <IconBadge icon={SEVERITY_ICON[it.severity]} tone={SEVERITY_TONE[it.severity]} size="sm" />
               <span className={`chip ${SEVERITY_CLASS[it.severity]}`}>{SEVERITY_LABEL[it.severity]}</span>
               <div style={{ flex: 1, minWidth: 200 }}>
                 <div style={{ fontSize: 13, fontWeight: 700 }}>{it.label}{it.who ? ` — ${it.who}` : ''}</div>
