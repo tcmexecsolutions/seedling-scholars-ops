@@ -202,12 +202,17 @@ button { cursor: pointer; }
    on the navy fill. ---------- */
 .sidebar-navy {
   background: #112733 !important;
-  --ink: #F5F3EF;
-  --ink-soft: rgba(245, 243, 239, 0.78);
-  --ink-faint: rgba(245, 243, 239, 0.56);
-  --border: rgba(245, 243, 239, 0.14);
-  --border-strong: rgba(245, 243, 239, 0.28);
-  --surface-2: rgba(245, 243, 239, 0.10);
+  --ink: #FFFFFF;
+  --ink-soft: rgba(255, 255, 255, 0.85);
+  --ink-faint: rgba(255, 255, 255, 0.62);
+  --border: rgba(255, 255, 255, 0.16);
+  --border-strong: rgba(255, 255, 255, 0.32);
+  --surface-2: rgba(255, 255, 255, 0.10);
+  /* Setting color here (not just the custom properties above) matters: any
+     text inside this sidebar that doesn't declare its own color — like the
+     signed-in person's name — inherits from this element directly instead
+     of picking up the page's default dark-navy text color. */
+  color: var(--ink);
 }
 .sidebar-navy .navtab.active { background: rgba(111, 80, 57, 0.85); color: #fff; }
 .sidebar-navy .chip-sage { background: rgba(91, 104, 107, 0.55); color: #fff; }
