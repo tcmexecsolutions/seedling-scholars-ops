@@ -201,7 +201,7 @@ button { cursor: pointer; }
    circle) is left alone / set explicitly, since it isn't sitting directly
    on the navy fill. ---------- */
 .sidebar-navy {
-  background: var(--ink) !important;
+  background: #112733 !important;
   --ink: #F5F3EF;
   --ink-soft: rgba(245, 243, 239, 0.78);
   --ink-faint: rgba(245, 243, 239, 0.56);
