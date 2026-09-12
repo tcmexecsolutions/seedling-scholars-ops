@@ -10,47 +10,141 @@ function credStatus(dateStr) {
   if (days <= 30) return 'expiring';
   return 'valid';
 }
-const STATUS_CLASS = { valid: 'chip-good', expiring: 'chip-warn', expired: 'chip-bad', missing: 'chip-neutral' };
-const STATUS_LABEL = { valid: 'Valid', expiring: 'Expiring', expired: 'Expired', missing: 'Not on file' };
+
+function hoursStatus(hoursCompleted, requiredHours, periodEnd) {
+  const have = Number(hoursCompleted) || 0;
+  const need = Number(requiredHours) || 0;
+  if (have >= need) return 'complete';
+  const daysLeft = Math.round((new Date(periodEnd) - new Date()) / 86400000);
+  if (isNaN(daysLeft) || daysLeft < 0) return 'overdue';
+  if (daysLeft <= 60) return 'behind';
+  return 'in_progress';
+}
+
+const DATE_STATUS_CLASS = { valid: 'chip-good', expiring: 'chip-warn', expired: 'chip-bad', missing: 'chip-neutral' };
+const DATE_STATUS_LABEL = { valid: 'Valid', expiring: 'Expiring', expired: 'Expired', missing: 'Not on file' };
+const HOURS_STATUS_CLASS = { complete: 'chip-good', behind: 'chip-warn', overdue: 'chip-bad', in_progress: 'chip-neutral' };
+const HOURS_STATUS_LABEL = { complete: 'On track', behind: 'Behind', overdue: 'Overdue', in_progress: 'In progress' };
 
 function initials(name) {
   return (name || '?').split(' ').map((s) => s[0]).slice(0, 2).join('').toUpperCase();
 }
 
+function currentPeriod() {
+  const year = new Date().getFullYear();
+  return { period_start: `${year}-01-01`, period_end: `${year}-12-31` };
+}
+
 export default function CredentialsView({ siteId, isAdmin }) {
+  const [site, setSite] = useState(null);
   const [staff, setStaff] = useState([]);
-  const [types, setTypes] = useState([]);
-  const [creds, setCreds] = useState({}); // profile_id -> { type_id: expires_on }
+  const [staffReqs, setStaffReqs] = useState([]); // staff_credential + staff_training_hours, this state
+  const [houseReqs, setHouseReqs] = useState([]); // house_license, this state
+  const [dateRows, setDateRows] = useState({}); // profile_id -> { requirement_id: expires_on }
+  const [hourRows, setHourRows] = useState({}); // profile_id -> { requirement_id: { id, hours_completed, period_end } }
+  const [houseDateRows, setHouseDateRows] = useState({}); // requirement_id -> { id, expires_on }
   const [loading, setLoading] = useState(true);
-  const [addingType, setAddingType] = useState(false);
-  const [newTypeLabel, setNewTypeLabel] = useState('');
   const [editingStaff, setEditingStaff] = useState(null);
   const [editDraft, setEditDraft] = useState({});
+  const [editingHouse, setEditingHouse] = useState(false);
+  const [houseDraft, setHouseDraft] = useState({});
   const [saving, setSaving] = useState(false);
 
   async function load() {
     setLoading(true);
-    const [{ data: profiles }, { data: credentialTypes }] = await Promise.all([
+    const { data: siteRow } = await supabase.from('sites').select('id, name, state').eq('id', siteId).single();
+    setSite(siteRow || null);
+
+    if (!siteRow?.state) {
+      setStaffReqs([]);
+      setHouseReqs([]);
+      setStaff([]);
+      setLoading(false);
+      return;
+    }
+
+    const [{ data: profiles }, { data: reqs }] = await Promise.all([
       supabase.from('profiles').select('id, full_name, role, staff_title').eq('site_id', siteId).order('full_name'),
-      supabase.from('credential_types').select('*').order('created_at'),
+      supabase.from('compliance_requirements').select('*').eq('state', siteRow.state).eq('active', true).order('sort_order'),
     ]);
     setStaff(profiles || []);
-    setTypes(credentialTypes || []);
+    const sReqs = (reqs || []).filter((r) => r.requirement_kind !== 'house_license');
+    const hReqs = (reqs || []).filter((r) => r.requirement_kind === 'house_license');
+    setStaffReqs(sReqs);
+    setHouseReqs(hReqs);
 
-    if (profiles && profiles.length) {
+    const staffIds = (profiles || []).map((p) => p.id);
+    const credReqIds = sReqs.filter((r) => r.requirement_kind === 'staff_credential').map((r) => r.id);
+    const hourReqIds = sReqs.filter((r) => r.requirement_kind === 'staff_training_hours').map((r) => r.id);
+    const { period_start, period_end } = currentPeriod();
+
+    if (staffIds.length && credReqIds.length) {
       const { data: rows } = await supabase
-        .from('staff_credentials')
-        .select('profile_id, credential_type_id, expires_on')
-        .in('profile_id', profiles.map((p) => p.id));
+        .from('staff_compliance_dates')
+        .select('profile_id, requirement_id, expires_on')
+        .in('profile_id', staffIds)
+        .in('requirement_id', credReqIds);
       const map = {};
       (rows || []).forEach((r) => {
         map[r.profile_id] = map[r.profile_id] || {};
-        map[r.profile_id][r.credential_type_id] = r.expires_on;
+        map[r.profile_id][r.requirement_id] = r.expires_on;
       });
-      setCreds(map);
+      setDateRows(map);
     } else {
-      setCreds({});
+      setDateRows({});
     }
+
+    if (staffIds.length && hourReqIds.length) {
+      let { data: rows } = await supabase
+        .from('staff_training_hours')
+        .select('id, profile_id, requirement_id, hours_completed, period_start, period_end')
+        .in('profile_id', staffIds)
+        .in('requirement_id', hourReqIds)
+        .eq('period_start', period_start);
+
+      const have = new Set((rows || []).map((r) => `${r.profile_id}:${r.requirement_id}`));
+      const missing = [];
+      staffIds.forEach((pid) => {
+        hourReqIds.forEach((rid) => {
+          if (!have.has(`${pid}:${rid}`)) missing.push({ profile_id: pid, requirement_id: rid, period_start, period_end, hours_completed: 0 });
+        });
+      });
+      if (missing.length) {
+        await supabase.from('staff_training_hours').insert(missing);
+        const { data: refreshed } = await supabase
+          .from('staff_training_hours')
+          .select('id, profile_id, requirement_id, hours_completed, period_start, period_end')
+          .in('profile_id', staffIds)
+          .in('requirement_id', hourReqIds)
+          .eq('period_start', period_start);
+        rows = refreshed;
+      }
+
+      const map = {};
+      (rows || []).forEach((r) => {
+        map[r.profile_id] = map[r.profile_id] || {};
+        map[r.profile_id][r.requirement_id] = { id: r.id, hours_completed: r.hours_completed, period_end: r.period_end };
+      });
+      setHourRows(map);
+    } else {
+      setHourRows({});
+    }
+
+    if (hReqs.length) {
+      const { data: rows } = await supabase
+        .from('site_compliance_dates')
+        .select('id, requirement_id, expires_on')
+        .eq('site_id', siteId)
+        .in('requirement_id', hReqs.map((r) => r.id));
+      const map = {};
+      (rows || []).forEach((r) => {
+        map[r.requirement_id] = { id: r.id, expires_on: r.expires_on };
+      });
+      setHouseDateRows(map);
+    } else {
+      setHouseDateRows({});
+    }
+
     setLoading(false);
   }
 
@@ -59,21 +153,14 @@ export default function CredentialsView({ siteId, isAdmin }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [siteId]);
 
-  async function addType() {
-    if (!newTypeLabel.trim()) return;
-    const key = newTypeLabel.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 40);
-    const { error } = await supabase.from('credential_types').insert({ key, label: newTypeLabel.trim() });
-    if (!error) {
-      setNewTypeLabel('');
-      setAddingType(false);
-      load();
-    }
-  }
-
   function openEdit(person) {
     const draft = {};
-    types.forEach((t) => {
-      draft[t.id] = creds[person.id]?.[t.id] || '';
+    staffReqs.forEach((r) => {
+      if (r.requirement_kind === 'staff_credential') {
+        draft[r.id] = dateRows[person.id]?.[r.id] || '';
+      } else {
+        draft[r.id] = hourRows[person.id]?.[r.id]?.hours_completed ?? 0;
+      }
     });
     setEditDraft(draft);
     setEditingStaff(person);
@@ -81,125 +168,224 @@ export default function CredentialsView({ siteId, isAdmin }) {
 
   async function saveEdit() {
     setSaving(true);
-    const rows = Object.entries(editDraft)
-      .filter(([, v]) => v)
-      .map(([credential_type_id, expires_on]) => ({
-        profile_id: editingStaff.id,
-        credential_type_id,
-        expires_on,
-      }));
-    if (rows.length) {
-      await supabase.from('staff_credentials').upsert(rows, { onConflict: 'profile_id,credential_type_id' });
+    const dateUpserts = [];
+    const hourUpdates = [];
+    staffReqs.forEach((r) => {
+      if (r.requirement_kind === 'staff_credential') {
+        if (editDraft[r.id]) {
+          dateUpserts.push({ profile_id: editingStaff.id, requirement_id: r.id, expires_on: editDraft[r.id] });
+        }
+      } else {
+        const existing = hourRows[editingStaff.id]?.[r.id];
+        if (existing) hourUpdates.push({ id: existing.id, hours_completed: Number(editDraft[r.id]) || 0 });
+      }
+    });
+    if (dateUpserts.length) {
+      await supabase.from('staff_compliance_dates').upsert(dateUpserts, { onConflict: 'profile_id,requirement_id' });
+    }
+    for (const u of hourUpdates) {
+      await supabase.from('staff_training_hours').update({ hours_completed: u.hours_completed }).eq('id', u.id);
     }
     setSaving(false);
     setEditingStaff(null);
     load();
   }
 
-  if (loading) return <div style={{ padding: 24, color: 'var(--ink-faint)' }}>Loading credentials…</div>;
+  function openHouseEdit() {
+    const draft = {};
+    houseReqs.forEach((r) => {
+      draft[r.id] = houseDateRows[r.id]?.expires_on || '';
+    });
+    setHouseDraft(draft);
+    setEditingHouse(true);
+  }
+
+  async function saveHouseEdit() {
+    setSaving(true);
+    const upserts = houseReqs
+      .filter((r) => houseDraft[r.id])
+      .map((r) => ({ site_id: siteId, requirement_id: r.id, expires_on: houseDraft[r.id] }));
+    if (upserts.length) {
+      await supabase.from('site_compliance_dates').upsert(upserts, { onConflict: 'site_id,requirement_id' });
+    }
+    setSaving(false);
+    setEditingHouse(false);
+    load();
+  }
+
+  if (loading) return <div style={{ padding: 24, color: 'var(--ink-faint)' }}>Loading compliance data…</div>;
+
+  if (!site?.state) {
+    return (
+      <div className="surface" style={{ padding: 20, maxWidth: 640, color: 'var(--ink-faint)', fontSize: 13 }}>
+        This house doesn't have a state set yet — add one in Settings → Houses so the right compliance requirements can be applied.
+      </div>
+    );
+  }
+
+  const noReqs = staffReqs.length === 0 && houseReqs.length === 0;
 
   return (
-    <div className="surface" style={{ padding: 20, maxWidth: 760 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-        <h2 className="font-display" style={{ fontSize: 17, fontWeight: 700 }}>Credential &amp; License Tracker</h2>
-        {isAdmin && (
-          <button className="btn btn-ghost btn-sm" onClick={() => setAddingType((v) => !v)}>
-            + Add Type
-          </button>
-        )}
-      </div>
-
-      {addingType && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-          <input
-            className="field"
-            placeholder="e.g. SIDS / Safe Sleep Training"
-            value={newTypeLabel}
-            onChange={(e) => setNewTypeLabel(e.target.value)}
-          />
-          <button className="btn btn-primary btn-sm" disabled={!newTypeLabel.trim()} onClick={addType}>
-            Add
-          </button>
+    <div style={{ display: 'grid', gap: 12, maxWidth: 780 }}>
+      {noReqs && (
+        <div className="surface" style={{ padding: 20, color: 'var(--ink-faint)', fontSize: 13 }}>
+          No compliance requirements have been set up for {site.state} yet.
+          {isAdmin && ' Go to Settings → State Regulations to add them.'}
         </div>
       )}
 
-      <div className="divide-token">
-        {staff.length === 0 && (
-          <div style={{ padding: '14px 0', color: 'var(--ink-faint)', fontSize: 13 }}>No staff assigned to this house yet.</div>
-        )}
-        {staff.map((s) => {
-          const personCreds = creds[s.id] || {};
-          const blocked = types.some((t) => credStatus(personCreds[t.id]) === 'expired');
-          return (
-            <div key={s.id} style={{ padding: '13px 0', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <div
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: '50%',
-                  background: 'var(--sage)',
-                  color: '#fff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  flexShrink: 0,
-                }}
-              >
-                {initials(s.full_name)}
-              </div>
-              <div style={{ minWidth: 130 }}>
-                <div style={{ fontSize: 13, fontWeight: 700 }}>{s.full_name}</div>
-                <div style={{ fontSize: 11, color: 'var(--ink-faint)' }}>
-                  {s.staff_title || (s.role === 'director' ? 'Site Director' : 'Teacher')}
-                  {blocked && <span style={{ color: 'var(--bad)', fontWeight: 700 }}> · Blocked from shift</span>}
+      {houseReqs.length > 0 && (
+        <div className="surface" style={{ padding: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <h2 className="font-display" style={{ fontSize: 16, fontWeight: 700 }}>House License &amp; Renewals — {site.state}</h2>
+            {isAdmin && <button className="btn btn-ghost btn-sm" onClick={openHouseEdit}>Edit</button>}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {houseReqs.map((r) => {
+              const status = credStatus(houseDateRows[r.id]?.expires_on);
+              return (
+                <span key={r.id} className={`chip ${DATE_STATUS_CLASS[status]}`} title={houseDateRows[r.id]?.expires_on || 'not on file'}>
+                  {r.label} · {DATE_STATUS_LABEL[status]}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {staffReqs.length > 0 && (
+        <div className="surface" style={{ padding: 20 }}>
+          <h2 className="font-display" style={{ fontSize: 17, fontWeight: 700, marginBottom: 6 }}>
+            Staff Compliance — {site.state}
+          </h2>
+          <div style={{ fontSize: 11.5, color: 'var(--ink-faint)', marginBottom: 10 }}>
+            Requirements below come from the {site.state} rules set up in Settings → State Regulations.
+          </div>
+
+          <div className="divide-token">
+            {staff.length === 0 && (
+              <div style={{ padding: '14px 0', color: 'var(--ink-faint)', fontSize: 13 }}>No staff assigned to this house yet — add them under Settings → Staff &amp; Logins.</div>
+            )}
+            {staff.map((s) => {
+              const blocked = staffReqs.some((r) => {
+                if (r.requirement_kind === 'staff_credential') return credStatus(dateRows[s.id]?.[r.id]) === 'expired';
+                const hr = hourRows[s.id]?.[r.id];
+                return hr && hoursStatus(hr.hours_completed, r.required_hours, hr.period_end) === 'overdue';
+              });
+              return (
+                <div key={s.id} style={{ padding: '13px 0', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <div
+                    style={{
+                      width: 34, height: 34, borderRadius: '50%', background: 'var(--sage)', color: '#fff',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0,
+                    }}
+                  >
+                    {initials(s.full_name)}
+                  </div>
+                  <div style={{ minWidth: 130 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>{s.full_name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--ink-faint)' }}>
+                      {s.staff_title || (s.role === 'director' ? 'Site Director' : 'Teacher')}
+                      {blocked && <span style={{ color: 'var(--bad)', fontWeight: 700 }}> · Blocked from shift</span>}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, flex: 1 }}>
+                    {staffReqs.map((r) => {
+                      if (r.requirement_kind === 'staff_credential') {
+                        const status = credStatus(dateRows[s.id]?.[r.id]);
+                        return (
+                          <span key={r.id} className={`chip ${DATE_STATUS_CLASS[status]}`} title={dateRows[s.id]?.[r.id] || 'not on file'}>
+                            {r.label} · {DATE_STATUS_LABEL[status]}
+                          </span>
+                        );
+                      }
+                      const hr = hourRows[s.id]?.[r.id];
+                      const status = hr ? hoursStatus(hr.hours_completed, r.required_hours, hr.period_end) : 'in_progress';
+                      return (
+                        <span key={r.id} className={`chip ${HOURS_STATUS_CLASS[status]}`}>
+                          {r.label} · {hr ? Number(hr.hours_completed) : 0}/{r.required_hours} hrs · {HOURS_STATUS_LABEL[status]}
+                        </span>
+                      );
+                    })}
+                  </div>
+                  {isAdmin && (
+                    <button className="btn btn-ghost btn-sm" onClick={() => openEdit(s)}>Edit</button>
+                  )}
                 </div>
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, flex: 1 }}>
-                {types.map((t) => {
-                  const status = credStatus(personCreds[t.id]);
-                  return (
-                    <span key={t.id} className={`chip ${STATUS_CLASS[status]}`} title={personCreds[t.id] || 'not on file'}>
-                      {t.label} · {STATUS_LABEL[status]}
-                    </span>
-                  );
-                })}
-              </div>
-              {isAdmin && (
-                <button className="btn btn-ghost btn-sm" onClick={() => openEdit(s)}>
-                  Edit
-                </button>
-              )}
-            </div>
-          );
-        })}
-      </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {editingStaff && (
         <div
           style={{ position: 'fixed', inset: 0, background: 'rgba(17,39,51,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}
           onMouseDown={() => setEditingStaff(null)}
         >
-          <div className="surface" style={{ width: 360, padding: 20 }} onMouseDown={(e) => e.stopPropagation()}>
+          <div className="surface" style={{ width: 380, padding: 20, maxHeight: '85vh', overflowY: 'auto' }} onMouseDown={(e) => e.stopPropagation()}>
             <h3 className="font-display" style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>
-              Edit Credentials — {editingStaff.full_name}
+              Edit Compliance — {editingStaff.full_name}
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {types.map((t) => (
-                <div key={t.id}>
-                  <label style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--ink-soft)' }}>{t.label} expiration</label>
+              {staffReqs.map((r) => (
+                <div key={r.id}>
+                  <label style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--ink-soft)' }}>
+                    {r.label} {r.requirement_kind === 'staff_training_hours' ? `(hours completed, of ${r.required_hours} required)` : 'expiration'}
+                  </label>
+                  {r.requirement_kind === 'staff_credential' ? (
+                    <input
+                      type="date"
+                      className="field"
+                      style={{ marginTop: 4 }}
+                      value={editDraft[r.id] || ''}
+                      onChange={(e) => setEditDraft((d) => ({ ...d, [r.id]: e.target.value }))}
+                    />
+                  ) : (
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      className="field"
+                      style={{ marginTop: 4 }}
+                      value={editDraft[r.id] ?? 0}
+                      onChange={(e) => setEditDraft((d) => ({ ...d, [r.id]: e.target.value }))}
+                    />
+                  )}
+                </div>
+              ))}
+              <button className="btn btn-primary btn-sm" disabled={saving} onClick={saveEdit}>
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingHouse && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(17,39,51,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}
+          onMouseDown={() => setEditingHouse(false)}
+        >
+          <div className="surface" style={{ width: 360, padding: 20 }} onMouseDown={(e) => e.stopPropagation()}>
+            <h3 className="font-display" style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>
+              Edit House License &amp; Renewals
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {houseReqs.map((r) => (
+                <div key={r.id}>
+                  <label style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--ink-soft)' }}>{r.label} expiration</label>
                   <input
                     type="date"
                     className="field"
                     style={{ marginTop: 4 }}
-                    value={editDraft[t.id] || ''}
-                    onChange={(e) => setEditDraft((d) => ({ ...d, [t.id]: e.target.value }))}
+                    value={houseDraft[r.id] || ''}
+                    onChange={(e) => setHouseDraft((d) => ({ ...d, [r.id]: e.target.value }))}
                   />
                 </div>
               ))}
-              <button className="btn btn-primary btn-sm" disabled={saving} onClick={saveEdit}>
-                Save Credentials
+              <button className="btn btn-primary btn-sm" disabled={saving} onClick={saveHouseEdit}>
+                Save
               </button>
             </div>
           </div>

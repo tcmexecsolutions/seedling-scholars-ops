@@ -6,12 +6,19 @@ import CapacityView from '../views/CapacityView.jsx';
 import CredentialsView from '../views/CredentialsView.jsx';
 import ChecklistView from '../views/ChecklistView.jsx';
 import AuditsView from '../views/AuditsView.jsx';
+import SettingsView from '../views/SettingsView.jsx';
+import AlertsView from '../views/AlertsView.jsx';
 
 const TABS = [
+  { id: 'alerts', label: 'Compliance Alerts', icon: 'bell' },
   { id: 'capacity', label: 'Capacity Monitor', icon: 'chart' },
-  { id: 'credentials', label: 'Credential Tracker', icon: 'badge' },
+  { id: 'credentials', label: 'Compliance Tracker', icon: 'badge' },
   { id: 'checklist', label: 'Safety Checklist', icon: 'check' },
   { id: 'audits', label: 'Audit History', icon: 'clipboard' },
+];
+
+const ADMIN_TABS = [
+  { id: 'settings', label: 'Settings', icon: 'gear' },
 ];
 
 export default function Shell({ profile }) {
@@ -99,6 +106,21 @@ export default function Shell({ profile }) {
               {t.label}
             </button>
           ))}
+          {isAdmin && (
+            <>
+              <div style={{ borderTop: '1px solid var(--border)', margin: '6px 4px' }} />
+              {ADMIN_TABS.map((t) => (
+                <button
+                  key={t.id}
+                  className={`navtab ${tab === t.id ? 'active' : ''}`}
+                  onClick={() => setTab(t.id)}
+                >
+                  <Icon name={t.icon} size={16} strokeWidth={1.9} />
+                  {t.label}
+                </button>
+              ))}
+            </>
+          )}
         </nav>
 
         <div style={{ marginTop: 'auto', paddingTop: 12, borderTop: '1px solid var(--border)' }}>
@@ -113,7 +135,11 @@ export default function Shell({ profile }) {
       </aside>
 
       <main style={{ flex: 1, padding: 12 }}>
-        {selectedSiteId ? (
+        {tab === 'settings' && isAdmin ? (
+          <SettingsView />
+        ) : tab === 'alerts' ? (
+          <AlertsView profile={profile} />
+        ) : selectedSiteId ? (
           <>
             {tab === 'capacity' && <CapacityView siteId={selectedSiteId} isAdmin={isAdmin} profile={profile} />}
             {tab === 'credentials' && <CredentialsView siteId={selectedSiteId} isAdmin={isAdmin} />}
