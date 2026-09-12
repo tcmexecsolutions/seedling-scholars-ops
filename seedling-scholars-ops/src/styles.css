@@ -189,6 +189,31 @@ button { cursor: pointer; }
 .brand-blob-sage { background: rgba(91, 104, 107, 0.20); }
 .brand-blob-accent { background: rgba(111, 80, 57, 0.16); }
 .brand-blob-taupe { background: rgba(192, 188, 185, 0.32); }
+/* Lightened versions of the same three hues — for glowing against a navy ground
+   instead of a white one (a low-opacity dark blob disappears on dark). */
+.brand-blob-sage-glow { background: rgba(139, 158, 161, 0.45); }
+.brand-blob-accent-glow { background: rgba(214, 152, 108, 0.35); }
+.brand-blob-taupe-glow { background: rgba(224, 220, 216, 0.30); }
+
+/* ---------- Navy sidebar / panel scope — redefines the text & border tokens
+   used by nav items, dividers and ghost buttons so they read light-on-navy.
+   Anything with its own solid or white background (a <select>, an avatar
+   circle) is left alone / set explicitly, since it isn't sitting directly
+   on the navy fill. ---------- */
+.sidebar-navy {
+  background: var(--ink) !important;
+  --ink: #F5F3EF;
+  --ink-soft: rgba(245, 243, 239, 0.78);
+  --ink-faint: rgba(245, 243, 239, 0.56);
+  --border: rgba(245, 243, 239, 0.14);
+  --border-strong: rgba(245, 243, 239, 0.28);
+  --surface-2: rgba(245, 243, 239, 0.10);
+}
+.sidebar-navy .navtab.active { background: rgba(111, 80, 57, 0.85); color: #fff; }
+.sidebar-navy .chip-sage { background: rgba(91, 104, 107, 0.55); color: #fff; }
+.sidebar-navy .chip-accent { background: rgba(111, 80, 57, 0.6); color: #fff; }
+.sidebar-navy .avatar-ring { box-shadow: 0 0 0 2px rgba(245, 243, 239, 0.25); }
+.sidebar-navy .field { color: #112733; }
 
 /* ---------- Stat cards — colored accent edge for dashboard tiles ---------- */
 .stat-card { position: relative; overflow: hidden; padding-left: 18px !important; }
