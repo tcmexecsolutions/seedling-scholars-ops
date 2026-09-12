@@ -153,3 +153,49 @@ button { cursor: pointer; }
 .progress-fill { height: 100%; border-radius: 100px; transition: width 0.3s ease; }
 
 .divide-token > * + * { border-top: 1px solid var(--border); }
+
+/* ---------- Icon badges (circular icon containers, brand-toned) ---------- */
+.icon-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.icon-badge-sm { width: 27px; height: 27px; border-radius: 9px; }
+.icon-badge-md { width: 38px; height: 38px; border-radius: 12px; }
+.icon-badge-lg { width: 52px; height: 52px; border-radius: 16px; }
+.icon-badge-accent { background: var(--accent-soft); color: var(--accent-ink); }
+.icon-badge-sage { background: var(--sage-soft); color: var(--sage-ink); }
+.icon-badge-taupe { background: var(--surface-2); color: var(--ink-soft); }
+.icon-badge-good { background: var(--good-soft); color: var(--good-ink); }
+.icon-badge-warn { background: var(--warn-soft); color: var(--warn-ink); }
+.icon-badge-bad { background: var(--bad-soft); color: var(--bad-ink); }
+.icon-badge-navy { background: var(--ink); color: #fff; }
+
+/* ---------- Section headers (icon badge + title/subtitle + action) ---------- */
+.section-header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+.section-header-text { flex: 1; min-width: 0; }
+.section-header-title { font-size: 16.5px; font-weight: 700; line-height: 1.25; }
+.section-header-subtitle { font-size: 12px; color: var(--ink-faint); margin-top: 3px; line-height: 1.45; }
+.section-header-action { flex-shrink: 0; }
+
+/* ---------- Empty states (icon badge + copy, replaces bare gray text) ---------- */
+.empty-state { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 30px 20px; gap: 9px; }
+.empty-state-title { font-size: 13.5px; font-weight: 700; color: var(--ink-soft); }
+.empty-state-hint { font-size: 12px; color: var(--ink-faint); max-width: 320px; line-height: 1.55; }
+
+/* ---------- Brand blobs — soft abstract shapes for depth, not the logo art ---------- */
+.brand-blob { position: absolute; border-radius: 50%; filter: blur(40px); pointer-events: none; z-index: 0; }
+.brand-blob-sage { background: rgba(91, 104, 107, 0.20); }
+.brand-blob-accent { background: rgba(111, 80, 57, 0.16); }
+.brand-blob-taupe { background: rgba(192, 188, 185, 0.32); }
+
+/* ---------- Stat cards — colored accent edge for dashboard tiles ---------- */
+.stat-card { position: relative; overflow: hidden; padding-left: 18px !important; }
+.stat-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; }
+.stat-card-good::before { background: var(--good); }
+.stat-card-bad::before { background: var(--bad); }
+.stat-card-sage::before { background: var(--sage); }
+
+/* ---------- Avatars — colored initials circle ---------- */
+.avatar-ring { display: flex; align-items: center; justify-content: center; border-radius: 50%; font-weight: 700; color: #fff; flex-shrink: 0; }
