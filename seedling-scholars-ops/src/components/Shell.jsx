@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient.js';
 import Icon from '../Icon.jsx';
-import { IconBadge, BrandBlob, Avatar } from '../ui.jsx';
+import { IconBadge, Avatar } from '../ui.jsx';
 import logo from '../assets/logo.png';
 import CapacityView from '../views/CapacityView.jsx';
 import CredentialsView from '../views/CredentialsView.jsx';
@@ -61,7 +61,6 @@ export default function Shell({ profile }) {
           overflow: 'hidden',
         }}
       >
-        <BrandBlob tone="sage-glow" size={180} style={{ top: -90, right: -80 }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 4px', position: 'relative', zIndex: 1 }}>
           <img src={logo} alt="TCM's Seedling Scholars" style={{ width: 38, height: 38, objectFit: 'contain' }} />
           <div>
