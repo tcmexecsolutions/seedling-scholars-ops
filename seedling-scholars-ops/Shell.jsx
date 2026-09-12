@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient.js';
 import Icon from '../Icon.jsx';
+import { IconBadge, BrandBlob, Avatar } from '../ui.jsx';
 import logo from '../assets/logo.png';
 import CapacityView from '../views/CapacityView.jsx';
 import CredentialsView from '../views/CredentialsView.jsx';
@@ -56,9 +57,12 @@ export default function Shell({ profile }) {
           flexDirection: 'column',
           gap: 18,
           borderRadius: 20,
+          position: 'relative',
+          overflow: 'hidden',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 4px' }}>
+        <BrandBlob tone="sage" size={180} style={{ top: -90, right: -80 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 4px', position: 'relative', zIndex: 1 }}>
           <img src={logo} alt="TCM's Seedling Scholars" style={{ width: 38, height: 38, objectFit: 'contain' }} />
           <div>
             <div className="font-display" style={{ fontSize: 14.5, fontWeight: 700, lineHeight: 1.1 }}>
@@ -71,7 +75,7 @@ export default function Shell({ profile }) {
         </div>
 
         {isAdmin ? (
-          <div>
+          <div style={{ position: 'relative', zIndex: 1 }}>
             <label style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Viewing house
             </label>
@@ -90,19 +94,19 @@ export default function Shell({ profile }) {
             </select>
           </div>
         ) : (
-          <div className="chip chip-sage" style={{ alignSelf: 'flex-start' }}>
+          <div className="chip chip-sage" style={{ alignSelf: 'flex-start', position: 'relative', zIndex: 1 }}>
             {selectedSite ? `${selectedSite.name} — ${selectedSite.city}, ${selectedSite.state}` : 'Your house'}
           </div>
         )}
 
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: 3, position: 'relative', zIndex: 1 }}>
           {TABS.map((t) => (
             <button
               key={t.id}
               className={`navtab ${tab === t.id ? 'active' : ''}`}
               onClick={() => setTab(t.id)}
             >
-              <Icon name={t.icon} size={16} strokeWidth={1.9} />
+              <IconBadge icon={t.icon} tone={tab === t.id ? 'accent' : 'taupe'} size="sm" />
               {t.label}
             </button>
           ))}
@@ -115,7 +119,7 @@ export default function Shell({ profile }) {
                   className={`navtab ${tab === t.id ? 'active' : ''}`}
                   onClick={() => setTab(t.id)}
                 >
-                  <Icon name={t.icon} size={16} strokeWidth={1.9} />
+                  <IconBadge icon={t.icon} tone={tab === t.id ? 'accent' : 'taupe'} size="sm" />
                   {t.label}
                 </button>
               ))}
@@ -123,12 +127,17 @@ export default function Shell({ profile }) {
           )}
         </nav>
 
-        <div style={{ marginTop: 'auto', paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-          <div style={{ fontSize: 12.5, fontWeight: 600 }}>{profile.full_name}</div>
-          <div className="chip chip-accent" style={{ marginTop: 5 }}>
-            {isAdmin ? 'Network Admin' : profile.staff_title || (profile.role === 'director' ? 'Site Director' : 'Teacher')}
+        <div style={{ marginTop: 'auto', paddingTop: 12, borderTop: '1px solid var(--border)', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 9 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+            <Avatar name={profile.full_name} tone={isAdmin ? 'navy' : 'sage'} size={32} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile.full_name}</div>
+              <div className="chip chip-accent" style={{ marginTop: 3 }}>
+                {isAdmin ? 'Network Admin' : profile.staff_title || (profile.role === 'director' ? 'Site Director' : 'Teacher')}
+              </div>
+            </div>
           </div>
-          <button className="btn btn-ghost btn-sm" style={{ marginTop: 10, width: '100%' }} onClick={() => supabase.auth.signOut()}>
+          <button className="btn btn-ghost btn-sm" style={{ width: '100%' }} onClick={() => supabase.auth.signOut()}>
             <Icon name="logout" size={14} /> Sign out
           </button>
         </div>
