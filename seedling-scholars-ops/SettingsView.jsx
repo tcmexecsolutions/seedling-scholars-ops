@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient.js';
 import Icon from '../Icon.jsx';
+import { SectionHeader, EmptyState, Avatar } from '../ui.jsx';
 
 const SUBTABS = [
   { id: 'staff', label: 'Staff & Logins', icon: 'badge' },
@@ -28,6 +29,22 @@ function genPassword() {
 }
 
 const ROLE_LABEL = { admin: 'Network Admin', director: 'Site Director', teacher: 'Teacher' };
+
+// supabase-js only gives a generic "non-2xx status code" message on function errors —
+// the real message our function sent lives in the raw response body, on error.context.
+async function readFnError(data, fnError, fallback) {
+  if (data?.error) return data.error;
+  if (fnError) {
+    try {
+      const body = await fnError.context.json();
+      if (body?.error) return body.error;
+    } catch {
+      // ignore — fall through to generic message below
+    }
+    return fnError.message || fallback;
+  }
+  return fallback;
+}
 
 function SubNav({ sub, setSub }) {
   return (
@@ -151,7 +168,7 @@ function StaffPanel() {
     });
     setSaving(false);
     if (fnError || data?.error) {
-      setError(data?.error || fnError.message || 'Something went wrong creating that login.');
+      setError(await readFnError(data, fnError, 'Something went wrong creating that login.'));
       return;
     }
     setCreatedInfo({ email: draft.email.trim(), password: draft.password, full_name: draft.full_name.trim() });
@@ -190,18 +207,19 @@ function StaffPanel() {
 
   return (
     <div className="surface" style={{ padding: 20, maxWidth: 780 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-        <h2 className="font-display" style={{ fontSize: 17, fontWeight: 700 }}>Staff &amp; Logins</h2>
-        <button className="btn btn-primary btn-sm" onClick={openAdd}>+ Add Staff Login</button>
-      </div>
-      <div style={{ fontSize: 12, color: 'var(--ink-faint)', marginBottom: 10 }}>
-        This is where a staff member gets an actual sign-in and gets assigned to a house. Once someone is added here, they'll show up in that house's Credential Tracker — add their fingerprint/CPR/medical dates there and this list will automatically flag Valid, Expiring, or Expired.
-      </div>
+      <SectionHeader
+        icon="badge"
+        tone="accent"
+        title="Staff & Logins"
+        subtitle="This is where a staff member gets an actual sign-in and gets assigned to a house. Once someone is added here, they'll show up in that house's Credential Tracker — add their fingerprint/CPR/medical dates there and this list will automatically flag Valid, Expiring, or Expired."
+        action={<button className="btn btn-primary btn-sm" onClick={openAdd}>+ Add Staff Login</button>}
+      />
 
       <div className="divide-token">
-        {staff.length === 0 && <div style={{ padding: '14px 0', color: 'var(--ink-faint)', fontSize: 13 }}>No staff logins yet.</div>}
+        {staff.length === 0 && <EmptyState icon="badge" tone="taupe" title="No staff logins yet" hint='Use "+ Add Staff Login" above to create one.' />}
         {staff.map((s) => (
           <div key={s.id} style={{ padding: '12px 0', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <Avatar name={s.full_name} tone={s.role === 'admin' ? 'navy' : 'sage'} size={32} />
             <div style={{ minWidth: 160, flex: 1 }}>
               <div style={{ fontSize: 13.5, fontWeight: 700 }}>{s.full_name}</div>
               <div style={{ fontSize: 11.5, color: 'var(--ink-faint)' }}>{s.email}</div>
@@ -393,7 +411,7 @@ function RegulationsPanel() {
     });
     setAnalyzingId(null);
     if (fnError || data?.error) {
-      setAnalyzeMsg(data?.error || fnError.message || 'Something went wrong analyzing that document.');
+      setAnalyzeMsg(await readFnError(data, fnError, 'Something went wrong analyzing that document.'));
       return;
     }
     setAnalyzeMsg(`Drafted ${data.count} requirement${data.count === 1 ? '' : 's'} — review them below before they go live.`);
@@ -526,15 +544,15 @@ function RegulationsPanel() {
       ) : (
         <div style={{ display: 'grid', gap: 12 }}>
           <div className="surface" style={{ padding: 20, maxWidth: 780 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <h2 className="font-display" style={{ fontSize: 16, fontWeight: 700 }}>{selectedState} — Regulation Documents</h2>
-              <button className="btn btn-primary btn-sm" onClick={() => { setShowUpload(true); setError(''); }}>+ Upload Document</button>
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--ink-faint)', marginBottom: 10 }}>
-              Keep the actual state licensing regulations on file here for reference.
-            </div>
+            <SectionHeader
+              icon="book"
+              tone="sage"
+              title={`${selectedState} — Regulation Documents`}
+              subtitle="Keep the actual state licensing regulations on file here for reference."
+              action={<button className="btn btn-primary btn-sm" onClick={() => { setShowUpload(true); setError(''); }}>+ Upload Document</button>}
+            />
             <div className="divide-token">
-              {docs.length === 0 && <div style={{ padding: '10px 0', color: 'var(--ink-faint)', fontSize: 13 }}>No documents uploaded yet.</div>}
+              {docs.length === 0 && <EmptyState icon="book" tone="taupe" title="No documents uploaded yet" />}
               {docs.map((d) => {
                 const isPdf = d.file_name.toLowerCase().endsWith('.pdf');
                 return (
@@ -566,10 +584,12 @@ function RegulationsPanel() {
 
           {reqs.some((r) => r.status === 'suggested') && (
             <div className="surface" style={{ padding: 20, maxWidth: 780, borderColor: 'var(--sage)' }}>
-              <h2 className="font-display" style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Suggested — Needs Your Review</h2>
-              <div style={{ fontSize: 12, color: 'var(--ink-faint)', marginBottom: 10 }}>
-                Drafted from an uploaded document. Nothing here affects the Compliance Tracker until you approve it.
-              </div>
+              <SectionHeader
+                icon="bell"
+                tone="warn"
+                title="Suggested — Needs Your Review"
+                subtitle="Drafted from an uploaded document. Nothing here affects the Compliance Tracker until you approve it."
+              />
               <div className="divide-token">
                 {reqs.filter((r) => r.status === 'suggested').map((r) => (
                   <div key={r.id} style={{ padding: '11px 0', display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -599,16 +619,16 @@ function RegulationsPanel() {
           )}
 
           <div className="surface" style={{ padding: 20, maxWidth: 780 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <h2 className="font-display" style={{ fontSize: 16, fontWeight: 700 }}>{selectedState} — Compliance Requirements</h2>
-              <button className="btn btn-primary btn-sm" onClick={openAddReq}>+ Add Requirement</button>
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--ink-faint)', marginBottom: 10 }}>
-              These drive what the Compliance Tracker checks for every house in {selectedState} — staff credentials, annual training hours, or the house's own license renewal.
-            </div>
+            <SectionHeader
+              icon="badge"
+              tone="accent"
+              title={`${selectedState} — Compliance Requirements`}
+              subtitle={`These drive what the Compliance Tracker checks for every house in ${selectedState} — staff credentials, annual training hours, or the house's own license renewal.`}
+              action={<button className="btn btn-primary btn-sm" onClick={openAddReq}>+ Add Requirement</button>}
+            />
             <div className="divide-token">
               {reqs.filter((r) => r.status !== 'suggested').length === 0 && (
-                <div style={{ padding: '10px 0', color: 'var(--ink-faint)', fontSize: 13 }}>No requirements yet.</div>
+                <EmptyState icon="badge" tone="taupe" title="No requirements yet" />
               )}
               {reqs.filter((r) => r.status !== 'suggested').map((r) => (
                 <div key={r.id} style={{ padding: '11px 0', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -790,16 +810,16 @@ function HousesPanel() {
 
   return (
     <div className="surface" style={{ padding: 20, maxWidth: 760 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-        <h2 className="font-display" style={{ fontSize: 17, fontWeight: 700 }}>Houses</h2>
-        <button className="btn btn-primary btn-sm" onClick={openAdd}>+ Add House</button>
-      </div>
-      <div style={{ fontSize: 12, color: 'var(--ink-faint)', marginBottom: 10 }}>
-        Adding a house here automatically sets up its capacity limits (2 infants / 2 young toddlers / 12 total) and makes it available in the house dropdown right away.
-      </div>
+      <SectionHeader
+        icon="house"
+        tone="sage"
+        title="Houses"
+        subtitle="Adding a house here automatically sets up its capacity limits (2 infants / 2 young toddlers / 12 total) and makes it available in the house dropdown right away."
+        action={<button className="btn btn-primary btn-sm" onClick={openAdd}>+ Add House</button>}
+      />
 
       <div className="divide-token">
-        {sites.length === 0 && <div style={{ padding: '14px 0', color: 'var(--ink-faint)', fontSize: 13 }}>No houses yet.</div>}
+        {sites.length === 0 && <EmptyState icon="house" tone="taupe" title="No houses yet" hint='Use "+ Add House" above to create one.' />}
         {sites.map((s) => (
           <div key={s.id} style={{ padding: '12px 0', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ minWidth: 160, flex: 1 }}>
@@ -915,10 +935,12 @@ function ChecklistItemsPanel() {
 
   return (
     <div className="surface" style={{ padding: 20, maxWidth: 720 }}>
-      <h2 className="font-display" style={{ fontSize: 17, fontWeight: 700, marginBottom: 6 }}>Daily Safety Checklist Items</h2>
-      <div style={{ fontSize: 12, color: 'var(--ink-faint)', marginBottom: 14 }}>
-        These are the items every house checks off each morning. Turning an item off removes it from future checklists without deleting past history.
-      </div>
+      <SectionHeader
+        icon="check"
+        tone="accent"
+        title="Daily Safety Checklist Items"
+        subtitle="These are the items every house checks off each morning. Turning an item off removes it from future checklists without deleting past history."
+      />
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
         <input
@@ -1036,10 +1058,12 @@ function AuditItemsPanel() {
 
   return (
     <div className="surface" style={{ padding: 20, maxWidth: 720 }}>
-      <h2 className="font-display" style={{ fontSize: 17, fontWeight: 700, marginBottom: 6 }}>{template.name} — Pop-In Audit Items</h2>
-      <div style={{ fontSize: 12, color: 'var(--ink-faint)', marginBottom: 14 }}>
-        These are the items checked during an admin audit / pop-in visit at any house.
-      </div>
+      <SectionHeader
+        icon="clipboard"
+        tone="accent"
+        title={`${template.name} — Pop-In Audit Items`}
+        subtitle="These are the items checked during an admin audit / pop-in visit at any house."
+      />
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
         <input

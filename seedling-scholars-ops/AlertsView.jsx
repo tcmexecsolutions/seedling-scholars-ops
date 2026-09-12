@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient.js';
+import { SectionHeader, EmptyState, IconBadge } from '../ui.jsx';
 
 function credStatus(dateStr) {
   if (!dateStr) return 'missing';
@@ -25,6 +26,8 @@ function hoursStatus(hoursCompleted, requiredHours, periodEnd) {
 const SEVERITY_ORDER = { expired: 0, expiring: 1, missing: 2 };
 const SEVERITY_CLASS = { expired: 'chip-bad', expiring: 'chip-warn', missing: 'chip-neutral' };
 const SEVERITY_LABEL = { expired: 'Overdue', expiring: 'Coming up', missing: 'Not on file' };
+const SEVERITY_TONE = { expired: 'bad', expiring: 'warn', missing: 'taupe' };
+const SEVERITY_ICON = { expired: 'bell', expiring: 'bell', missing: 'book' };
 
 function currentPeriod() {
   const year = new Date().getFullYear();
@@ -138,14 +141,16 @@ export default function AlertsView({ profile }) {
 
   return (
     <div className="surface" style={{ padding: 20, maxWidth: 780 }}>
-      <h2 className="font-display" style={{ fontSize: 17, fontWeight: 700, marginBottom: 6 }}>
-        {isAdmin ? 'Compliance Alerts — All Houses' : 'Your Compliance'}
-      </h2>
-      <div style={{ fontSize: 12, color: 'var(--ink-faint)', marginBottom: 14 }}>
-        {isAdmin
-          ? 'Anything overdue, coming up in the next 30–60 days, or missing across every house.'
-          : 'Anything of yours that’s overdue, coming up soon, or missing, plus your house’s own license status.'}
-      </div>
+      <SectionHeader
+        icon="bell"
+        tone={overdue ? 'bad' : soon ? 'warn' : 'good'}
+        title={isAdmin ? 'Compliance Alerts — All Houses' : 'Your Compliance'}
+        subtitle={
+          isAdmin
+            ? 'Anything overdue, coming up in the next 30–60 days, or missing across every house.'
+            : 'Anything of yours that’s overdue, coming up soon, or missing, plus your house’s own license status.'
+        }
+      />
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <span className="chip chip-bad">{overdue} overdue</span>
@@ -154,13 +159,12 @@ export default function AlertsView({ profile }) {
       </div>
 
       {items.length === 0 ? (
-        <div style={{ padding: '14px 0', color: 'var(--good-ink)', fontSize: 13, fontWeight: 600 }}>
-          Nothing needs attention right now.
-        </div>
+        <EmptyState icon="check" tone="good" title="Nothing needs attention right now" />
       ) : (
         <div className="divide-token">
           {items.map((it, i) => (
-            <div key={i} style={{ padding: '11px 0', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div key={i} style={{ padding: '11px 0', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <IconBadge icon={SEVERITY_ICON[it.severity]} tone={SEVERITY_TONE[it.severity]} size="sm" />
               <span className={`chip ${SEVERITY_CLASS[it.severity]}`}>{SEVERITY_LABEL[it.severity]}</span>
               <div style={{ flex: 1, minWidth: 200 }}>
                 <div style={{ fontSize: 13, fontWeight: 700 }}>{it.label}{it.who ? ` — ${it.who}` : ''}</div>

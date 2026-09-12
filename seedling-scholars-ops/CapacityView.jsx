@@ -1,15 +1,19 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../supabaseClient.js';
+import { IconBadge, SectionHeader } from '../ui.jsx';
 
-function Band({ label, count, cap }) {
+function Band({ label, count, cap, icon }) {
   const over = cap != null && count > cap;
   return (
     <div
-      className="surface"
+      className={`surface stat-card ${over ? 'stat-card-bad' : 'stat-card-sage'}`}
       style={{ padding: 14, background: over ? 'var(--bad-soft)' : 'var(--surface-2)', border: 'none' }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 12, fontWeight: 700 }}>{label}</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 700 }}>
+          <IconBadge icon={icon} tone={over ? 'bad' : 'sage'} size="sm" />
+          {label}
+        </span>
         {cap != null && <span className={`chip font-mono ${over ? 'chip-bad' : 'chip-neutral'}`}>cap {cap}</span>}
       </div>
       <div style={{ marginTop: 8, display: 'flex', alignItems: 'baseline', gap: 4 }}>
@@ -112,13 +116,16 @@ export default function CapacityView({ siteId, isAdmin }) {
     <div style={{ display: 'grid', gap: 12, maxWidth: 760 }}>
       <div className="surface" style={{ padding: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10 }}>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Live Capacity Monitor
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <IconBadge icon="chart" tone={violation ? 'bad' : 'accent'} size="lg" />
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Live Capacity Monitor
+              </div>
+              <h2 className="font-display" style={{ fontSize: 19, fontWeight: 700, marginTop: 3 }}>
+                Large Family Child Care License
+              </h2>
             </div>
-            <h2 className="font-display" style={{ fontSize: 19, fontWeight: 700, marginTop: 3 }}>
-              Large Family Child Care License
-            </h2>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <span className={`chip ${violation ? 'chip-bad' : 'chip-good'}`} style={{ padding: '6px 13px', fontSize: 12.5 }}>
@@ -170,9 +177,9 @@ export default function CapacityView({ siteId, isAdmin }) {
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 16 }}>
-            <Band label="Infant (6wk–12mo)" count={totals.infant} cap={capacity.infant_cap} />
-            <Band label="Young Toddler (13–24mo)" count={totals.toddler} cap={capacity.young_toddler_cap} />
-            <Band label="25mo+" count={totals.older} cap={null} />
+            <Band label="Infant (6wk–12mo)" count={totals.infant} cap={capacity.infant_cap} icon="sprout" />
+            <Band label="Young Toddler (13–24mo)" count={totals.toddler} cap={capacity.young_toddler_cap} icon="chart" />
+            <Band label="25mo+" count={totals.older} cap={null} icon="badge" />
           </div>
         )}
 
@@ -201,9 +208,7 @@ export default function CapacityView({ siteId, isAdmin }) {
       </div>
 
       <div className="surface" style={{ padding: 20 }}>
-        <h3 className="font-display" style={{ fontSize: 15.5, fontWeight: 700, marginBottom: 12 }}>
-          Log Current Headcount
-        </h3>
+        <SectionHeader icon="clipboard" tone="sage" title="Log Current Headcount" size="sm" />
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
           <div>
             <label style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--ink-soft)' }}>Infants</label>
