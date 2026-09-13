@@ -60,6 +60,13 @@ const PATHS = {
     ['path', { d: 'M6 10a6 6 0 0 1 12 0c0 4 1.5 5.5 2 6H4c.5-.5 2-2 2-6Z' }],
     ['path', { d: 'M9.5 19a2.5 2.5 0 0 0 5 0' }],
   ],
+  eye: [
+    ['path', { d: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z' }],
+    ['circle', { cx: 12, cy: 12, r: 3 }],
+  ],
+  chevronDown: [
+    ['path', { d: 'm6 9 6 6 6-6' }],
+  ],
 };
 
 export default function Icon({ name, size = 18, strokeWidth = 1.8, className = '' }) {
