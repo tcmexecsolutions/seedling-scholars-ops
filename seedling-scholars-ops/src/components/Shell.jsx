@@ -37,10 +37,6 @@ export default function Shell({ profile }) {
   const [previewProfile, setPreviewProfile] = useState(null);
   const isPreviewing = !!previewProfile;
 
-  // Everything below renders based on activeProfile — either the real
-  // signed-in admin, or the staff member currently being previewed. This is
-  // what makes "view as" show exactly what that person would see, using the
-  // same code paths a normal login would.
   const activeProfile = previewProfile || profile;
   const isAdmin = activeProfile.role === 'admin';
   const isAccountHolder = activeProfile.role === 'account_holder';
@@ -59,8 +55,6 @@ export default function Shell({ profile }) {
       });
   }, []);
 
-  // The real admin's list of staff to choose from when previewing. Loaded
-  // once up front so opening the picker is instant.
   useEffect(() => {
     if (!realIsAdmin) return;
     supabase
@@ -71,9 +65,6 @@ export default function Shell({ profile }) {
       .then(({ data }) => setStaffOptions(data || []));
   }, [realIsAdmin]);
 
-  // Recompute which house(s) are in play whenever the active identity
-  // changes — either the real admin switching who they're previewing, or
-  // (for a real account-holder login) just on mount.
   useEffect(() => {
     let cancelled = false;
     async function loadAssignments() {
@@ -102,9 +93,6 @@ export default function Shell({ profile }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProfile.id, activeProfile.role, sites.length]);
 
-  // The houses this identity can switch between: every house for an admin,
-  // just their assigned ones for an account holder, none (single fixed
-  // house shown separately below) for a director or teacher.
   const switchableSites = isAdmin ? sites : isAccountHolder ? sites.filter((s) => (mySiteIds || []).includes(s.id)) : [];
   const accessibleSiteIds = isAdmin ? sites.map((s) => s.id) : isAccountHolder ? (mySiteIds || []) : activeProfile.site_id ? [activeProfile.site_id] : [];
 
