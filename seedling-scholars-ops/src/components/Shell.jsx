@@ -9,6 +9,7 @@ import ChecklistView from '../views/ChecklistView.jsx';
 import AuditsView from '../views/AuditsView.jsx';
 import SettingsView from '../views/SettingsView.jsx';
 import AlertsView from '../views/AlertsView.jsx';
+import KPIView from '../views/KPIView.jsx';
 
 const TABS = [
   { id: 'alerts', label: 'Compliance Alerts', icon: 'bell' },
@@ -16,6 +17,12 @@ const TABS = [
   { id: 'credentials', label: 'Compliance Tracker', icon: 'badge' },
   { id: 'checklist', label: 'Safety Checklist', icon: 'check' },
   { id: 'audits', label: 'Audit History', icon: 'clipboard' },
+];
+
+// Shown only to admin and account holders — a network-level rollup isn't
+// relevant to a single director/teacher's own house view.
+const KPI_TABS = [
+  { id: 'kpis', label: 'Network KPIs', icon: 'trend' },
 ];
 
 const ADMIN_TABS = [
@@ -37,6 +44,10 @@ export default function Shell({ profile }) {
   const [previewProfile, setPreviewProfile] = useState(null);
   const isPreviewing = !!previewProfile;
 
+  // Everything below renders based on activeProfile — either the real
+  // signed-in admin, or the staff member currently being previewed. This is
+  // what makes "view as" show exactly what that person would see, using the
+  // same code paths a normal login would.
   const activeProfile = previewProfile || profile;
   const isAdmin = activeProfile.role === 'admin';
   const isAccountHolder = activeProfile.role === 'account_holder';
@@ -55,6 +66,8 @@ export default function Shell({ profile }) {
       });
   }, []);
 
+  // The real admin's list of staff to choose from when previewing. Loaded
+  // once up front so opening the picker is instant.
   useEffect(() => {
     if (!realIsAdmin) return;
     supabase
@@ -65,6 +78,9 @@ export default function Shell({ profile }) {
       .then(({ data }) => setStaffOptions(data || []));
   }, [realIsAdmin]);
 
+  // Recompute which house(s) are in play whenever the active identity
+  // changes — either the real admin switching who they're previewing, or
+  // (for a real account-holder login) just on mount.
   useEffect(() => {
     let cancelled = false;
     async function loadAssignments() {
@@ -93,6 +109,9 @@ export default function Shell({ profile }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProfile.id, activeProfile.role, sites.length]);
 
+  // The houses this identity can switch between: every house for an admin,
+  // just their assigned ones for an account holder, none (single fixed
+  // house shown separately below) for a director or teacher.
   const switchableSites = isAdmin ? sites : isAccountHolder ? sites.filter((s) => (mySiteIds || []).includes(s.id)) : [];
   const accessibleSiteIds = isAdmin ? sites.map((s) => s.id) : isAccountHolder ? (mySiteIds || []) : activeProfile.site_id ? [activeProfile.site_id] : [];
 
@@ -210,6 +229,21 @@ export default function Shell({ profile }) {
                 {t.label}
               </button>
             ))}
+            {(isAdmin || isAccountHolder) && (
+              <>
+                <div style={{ borderTop: '1px solid var(--border)', margin: '6px 4px' }} />
+                {KPI_TABS.map((t) => (
+                  <button
+                    key={t.id}
+                    className={`navtab ${tab === t.id ? 'active' : ''}`}
+                    onClick={() => setTab(t.id)}
+                  >
+                    <IconBadge icon={t.icon} tone={tab === t.id ? 'accent' : 'taupe'} size="sm" />
+                    {t.label}
+                  </button>
+                ))}
+              </>
+            )}
             {isAdmin && (
               <>
                 <div style={{ borderTop: '1px solid var(--border)', margin: '6px 4px' }} />
@@ -275,6 +309,8 @@ export default function Shell({ profile }) {
         <main style={{ flex: 1, padding: 12 }}>
           {tab === 'settings' && isAdmin ? (
             <SettingsView />
+          ) : tab === 'kpis' && (isAdmin || isAccountHolder) ? (
+            <KPIView sites={sites.filter((s) => accessibleSiteIds.includes(s.id))} profile={activeProfile} />
           ) : tab === 'alerts' ? (
             <AlertsView profile={activeProfile} accessibleSiteIds={accessibleSiteIds} />
           ) : selectedSiteId ? (
