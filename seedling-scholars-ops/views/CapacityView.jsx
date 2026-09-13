@@ -26,7 +26,7 @@ function Band({ label, count, cap, icon }) {
   );
 }
 
-export default function CapacityView({ siteId, isAdmin }) {
+export default function CapacityView({ siteId, isAdmin, readOnly }) {
   const [capacity, setCapacity] = useState(null);
   const [latest, setLatest] = useState(null);
   const [editingCaps, setEditingCaps] = useState(false);
@@ -131,7 +131,7 @@ export default function CapacityView({ siteId, isAdmin }) {
             <span className={`chip ${violation ? 'chip-bad' : 'chip-good'}`} style={{ padding: '6px 13px', fontSize: 12.5 }}>
               {violation ? 'Capacity Violation' : 'Compliant'}
             </span>
-            {isAdmin && (
+            {isAdmin && !readOnly && (
               <button className="btn btn-outline btn-sm" onClick={() => setEditingCaps((v) => !v)}>
                 {editingCaps ? 'Cancel' : 'Edit Limits'}
               </button>
@@ -218,6 +218,7 @@ export default function CapacityView({ siteId, isAdmin }) {
               className="field"
               style={{ marginTop: 4 }}
               value={logDraft.infant_count}
+              disabled={readOnly}
               onChange={(e) => setLogDraft((d) => ({ ...d, infant_count: e.target.value }))}
             />
           </div>
@@ -229,6 +230,7 @@ export default function CapacityView({ siteId, isAdmin }) {
               className="field"
               style={{ marginTop: 4 }}
               value={logDraft.young_toddler_count}
+              disabled={readOnly}
               onChange={(e) => setLogDraft((d) => ({ ...d, young_toddler_count: e.target.value }))}
             />
           </div>
@@ -240,13 +242,17 @@ export default function CapacityView({ siteId, isAdmin }) {
               className="field"
               style={{ marginTop: 4 }}
               value={logDraft.older_count}
+              disabled={readOnly}
               onChange={(e) => setLogDraft((d) => ({ ...d, older_count: e.target.value }))}
             />
           </div>
         </div>
-        <button className="btn btn-primary btn-sm" style={{ marginTop: 12 }} disabled={saving} onClick={submitHeadcount}>
+        <button className="btn btn-primary btn-sm" style={{ marginTop: 12 }} disabled={saving || readOnly} onClick={submitHeadcount}>
           Log Headcount
         </button>
+        {readOnly && (
+          <div style={{ marginTop: 10, fontSize: 11.5, color: 'var(--ink-faint)' }}>Logging is disabled while previewing.</div>
+        )}
         {message && <div style={{ marginTop: 10, fontSize: 12, color: 'var(--good-ink)' }}>{message}</div>}
       </div>
     </div>
