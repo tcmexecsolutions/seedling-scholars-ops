@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient.js';
+import { SectionHeader, EmptyState } from '../ui.jsx';
 
-export default function AuditsView({ siteId, isAdmin, profile }) {
+export default function AuditsView({ siteId, canAudit, profile, readOnly }) {
   const [template, setTemplate] = useState(null);
   const [templateItems, setTemplateItems] = useState([]);
   const [runs, setRuns] = useState([]);
@@ -82,14 +83,18 @@ export default function AuditsView({ siteId, isAdmin, profile }) {
 
   return (
     <div className="surface" style={{ padding: 20, maxWidth: 720 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-        <h2 className="font-display" style={{ fontSize: 17, fontWeight: 700 }}>Audit History</h2>
-        {isAdmin && !creating && (
-          <button className="btn btn-primary btn-sm" onClick={startCreate} disabled={!template}>
-            + New Audit
-          </button>
-        )}
-      </div>
+      <SectionHeader
+        icon="clipboard"
+        tone="accent"
+        title="Audit History"
+        action={
+          canAudit && !readOnly && !creating && (
+            <button className="btn btn-primary btn-sm" onClick={startCreate} disabled={!template}>
+              + New Audit
+            </button>
+          )
+        }
+      />
 
       {creating && (
         <div style={{ margin: '14px 0', padding: 16, borderRadius: 14, background: 'var(--surface-2)' }}>
@@ -144,7 +149,9 @@ export default function AuditsView({ siteId, isAdmin, profile }) {
       )}
 
       <div className="divide-token">
-        {runs.length === 0 && <div style={{ padding: '14px 0', color: 'var(--ink-faint)', fontSize: 13 }}>No audits recorded yet.</div>}
+        {runs.length === 0 && (
+          <EmptyState icon="clipboard" tone="taupe" title="No audits recorded yet" hint={canAudit ? 'Start one with "+ New Audit" above.' : undefined} />
+        )}
         {runs.map((run) => {
           const failCount = (run.audit_run_items || []).filter((i) => i.result === 'fail').length;
           return (

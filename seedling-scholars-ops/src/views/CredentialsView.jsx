@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient.js';
+import { SectionHeader, EmptyState, Avatar } from '../ui.jsx';
 
 function credStatus(dateStr) {
   if (!dateStr) return 'missing';
@@ -26,16 +27,12 @@ const DATE_STATUS_LABEL = { valid: 'Valid', expiring: 'Expiring', expired: 'Expi
 const HOURS_STATUS_CLASS = { complete: 'chip-good', behind: 'chip-warn', overdue: 'chip-bad', in_progress: 'chip-neutral' };
 const HOURS_STATUS_LABEL = { complete: 'On track', behind: 'Behind', overdue: 'Overdue', in_progress: 'In progress' };
 
-function initials(name) {
-  return (name || '?').split(' ').map((s) => s[0]).slice(0, 2).join('').toUpperCase();
-}
-
 function currentPeriod() {
   const year = new Date().getFullYear();
   return { period_start: `${year}-01-01`, period_end: `${year}-12-31` };
 }
 
-export default function CredentialsView({ siteId, isAdmin }) {
+export default function CredentialsView({ siteId, isAdmin, readOnly }) {
   const [site, setSite] = useState(null);
   const [staff, setStaff] = useState([]);
   const [staffReqs, setStaffReqs] = useState([]); // staff_credential + staff_training_hours, this state
@@ -217,8 +214,13 @@ export default function CredentialsView({ siteId, isAdmin }) {
 
   if (!site?.state) {
     return (
-      <div className="surface" style={{ padding: 20, maxWidth: 640, color: 'var(--ink-faint)', fontSize: 13 }}>
-        This house doesn't have a state set yet — add one in Settings → Houses so the right compliance requirements can be applied.
+      <div className="surface" style={{ padding: 8, maxWidth: 640 }}>
+        <EmptyState
+          icon="house"
+          tone="taupe"
+          title="No state set for this house"
+          hint="Add one in Settings → Houses so the right compliance requirements can be applied."
+        />
       </div>
     );
   }
@@ -228,18 +230,24 @@ export default function CredentialsView({ siteId, isAdmin }) {
   return (
     <div style={{ display: 'grid', gap: 12, maxWidth: 780 }}>
       {noReqs && (
-        <div className="surface" style={{ padding: 20, color: 'var(--ink-faint)', fontSize: 13 }}>
-          No compliance requirements have been set up for {site.state} yet.
-          {isAdmin && ' Go to Settings → State Regulations to add them.'}
+        <div className="surface" style={{ padding: 8 }}>
+          <EmptyState
+            icon="book"
+            tone="taupe"
+            title={`No compliance requirements set up for ${site.state} yet`}
+            hint={isAdmin ? 'Go to Settings → State Regulations to add them.' : undefined}
+          />
         </div>
       )}
 
       {houseReqs.length > 0 && (
         <div className="surface" style={{ padding: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <h2 className="font-display" style={{ fontSize: 16, fontWeight: 700 }}>House License &amp; Renewals — {site.state}</h2>
-            {isAdmin && <button className="btn btn-ghost btn-sm" onClick={openHouseEdit}>Edit</button>}
-          </div>
+          <SectionHeader
+            icon="house"
+            tone="sage"
+            title={`House License & Renewals — ${site.state}`}
+            action={isAdmin && !readOnly && <button className="btn btn-ghost btn-sm" onClick={openHouseEdit}>Edit</button>}
+          />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {houseReqs.map((r) => {
               const status = credStatus(houseDateRows[r.id]?.expires_on);
@@ -255,16 +263,21 @@ export default function CredentialsView({ siteId, isAdmin }) {
 
       {staffReqs.length > 0 && (
         <div className="surface" style={{ padding: 20 }}>
-          <h2 className="font-display" style={{ fontSize: 17, fontWeight: 700, marginBottom: 6 }}>
-            Staff Compliance — {site.state}
-          </h2>
-          <div style={{ fontSize: 11.5, color: 'var(--ink-faint)', marginBottom: 10 }}>
-            Requirements below come from the {site.state} rules set up in Settings → State Regulations.
-          </div>
+          <SectionHeader
+            icon="badge"
+            tone="accent"
+            title={`Staff Compliance — ${site.state}`}
+            subtitle={`Requirements below come from the ${site.state} rules set up in Settings → State Regulations.`}
+          />
 
           <div className="divide-token">
             {staff.length === 0 && (
-              <div style={{ padding: '14px 0', color: 'var(--ink-faint)', fontSize: 13 }}>No staff assigned to this house yet — add them under Settings → Staff &amp; Logins.</div>
+              <EmptyState
+                icon="badge"
+                tone="taupe"
+                title="No staff assigned to this house yet"
+                hint="Add them under Settings → Staff & Logins."
+              />
             )}
             {staff.map((s) => {
               const blocked = staffReqs.some((r) => {
@@ -274,14 +287,7 @@ export default function CredentialsView({ siteId, isAdmin }) {
               });
               return (
                 <div key={s.id} style={{ padding: '13px 0', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                  <div
-                    style={{
-                      width: 34, height: 34, borderRadius: '50%', background: 'var(--sage)', color: '#fff',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0,
-                    }}
-                  >
-                    {initials(s.full_name)}
-                  </div>
+                  <Avatar name={s.full_name} tone={blocked ? 'bad' : 'sage'} size={34} />
                   <div style={{ minWidth: 130 }}>
                     <div style={{ fontSize: 13, fontWeight: 700 }}>{s.full_name}</div>
                     <div style={{ fontSize: 11, color: 'var(--ink-faint)' }}>
@@ -308,7 +314,7 @@ export default function CredentialsView({ siteId, isAdmin }) {
                       );
                     })}
                   </div>
-                  {isAdmin && (
+                  {isAdmin && !readOnly && (
                     <button className="btn btn-ghost btn-sm" onClick={() => openEdit(s)}>Edit</button>
                   )}
                 </div>

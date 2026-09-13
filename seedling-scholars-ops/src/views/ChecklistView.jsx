@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient.js';
+import { SectionHeader, IconBadge } from '../ui.jsx';
 
 function todayStr() {
   const d = new Date();
   return d.toISOString().slice(0, 10);
 }
 
-export default function ChecklistView({ siteId, profile }) {
+export default function ChecklistView({ siteId, profile, readOnly }) {
   const [items, setItems] = useState([]);
   const [runItems, setRunItems] = useState([]); // { id, checklist_item_id, completed }
   const [loading, setLoading] = useState(true);
@@ -28,7 +29,10 @@ export default function ChecklistView({ siteId, profile }) {
       .eq('run_date', todayStr())
       .maybeSingle();
 
-    if (!run) {
+    // While previewing, this is a look-only pass: show today's run if one
+    // already exists, but never create one just because an admin peeked at
+    // this screen.
+    if (!run && !readOnly) {
       const { data: newRun, error } = await supabase
         .from('checklist_runs')
         .insert({ site_id: siteId, run_date: todayStr(), created_by: profile.id })
@@ -45,7 +49,7 @@ export default function ChecklistView({ siteId, profile }) {
 
       const have = new Set((existingItems || []).map((i) => i.checklist_item_id));
       const missing = (masterItems || []).filter((mi) => !have.has(mi.id));
-      if (missing.length) {
+      if (missing.length && !readOnly) {
         await supabase.from('checklist_run_items').insert(
           missing.map((mi) => ({ checklist_run_id: run.id, checklist_item_id: mi.id }))
         );
@@ -57,6 +61,8 @@ export default function ChecklistView({ siteId, profile }) {
       } else {
         setRunItems(existingItems || []);
       }
+    } else {
+      setRunItems([]);
     }
     setLoading(false);
   }
@@ -67,6 +73,7 @@ export default function ChecklistView({ siteId, profile }) {
   }, [siteId]);
 
   async function toggle(runItem) {
+    if (readOnly) return;
     setBusy(true);
     const nextCompleted = !runItem.completed;
     await supabase
@@ -89,8 +96,8 @@ export default function ChecklistView({ siteId, profile }) {
 
   return (
     <div className="surface" style={{ padding: 20, maxWidth: 640 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 className="font-display" style={{ fontSize: 17, fontWeight: 700 }}>Daily Opening Safety Walkthrough</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <SectionHeader icon="check" tone={pct === 100 ? 'good' : 'accent'} title="Daily Opening Safety Walkthrough" size="sm" />
         <span className="font-mono" style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink-soft)' }}>
           {done}/{total}
         </span>
@@ -106,9 +113,9 @@ export default function ChecklistView({ siteId, profile }) {
           return (
             <label
               key={item.id}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 4px', cursor: busy ? 'default' : 'pointer' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 4px', cursor: busy || readOnly ? 'default' : 'pointer' }}
             >
-              <input type="checkbox" checked={checked} disabled={busy || !ri} onChange={() => ri && toggle(ri)} />
+              <input type="checkbox" checked={checked} disabled={busy || readOnly || !ri} onChange={() => ri && toggle(ri)} />
               <span style={{ fontSize: 13, color: checked ? 'var(--ink-faint)' : 'var(--ink)', textDecoration: checked ? 'line-through' : 'none' }}>
                 {item.label}
               </span>
@@ -126,8 +133,12 @@ export default function ChecklistView({ siteId, profile }) {
           color: pct === 100 ? 'var(--good-ink)' : 'var(--warn-ink)',
           fontSize: 12.5,
           fontWeight: 700,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 9,
         }}
       >
+        <IconBadge icon={pct === 100 ? 'check' : 'bell'} tone={pct === 100 ? 'good' : 'warn'} size="sm" />
         {pct === 100 ? 'Site cleared for morning intake.' : `Not yet cleared — ${total - done} item${total - done === 1 ? '' : 's'} remaining.`}
       </div>
     </div>
