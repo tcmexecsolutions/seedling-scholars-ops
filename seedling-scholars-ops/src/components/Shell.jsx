@@ -103,18 +103,18 @@ export default function Shell({ profile }) {
               value={selectedSiteId}
               onChange={(e) => setSelectedSiteId(e.target.value)}
             >
-              {loadingSites && <option>Loading…</option>}
+              {loadingSites && <option>Loading‚Ä¶</option>}
               {!loadingSites && switchableSites.length === 0 && <option>No houses assigned yet</option>}
               {switchableSites.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name} — {s.city}, {s.state}
+                  {s.name} ‚Äî {s.city}, {s.state}
                 </option>
               ))}
             </select>
           </div>
         ) : (
           <div className="chip chip-sage" style={{ alignSelf: 'flex-start', position: 'relative', zIndex: 1 }}>
-            {selectedSite ? `${selectedSite.name} — ${selectedSite.city}, ${selectedSite.state}` : 'Your house'}
+            {selectedSite ? `${selectedSite.name} ‚Äî ${selectedSite.city}, ${selectedSite.state}` : 'Your house'}
           </div>
         )}
 
