@@ -10,6 +10,7 @@ import AuditsView from '../views/AuditsView.jsx';
 import SettingsView from '../views/SettingsView.jsx';
 import AlertsView from '../views/AlertsView.jsx';
 import KPIView from '../views/KPIView.jsx';
+import DocumentsView from '../views/DocumentsView.jsx';
 import AccountModal from './AccountModal.jsx';
 
 const TABS = [
@@ -24,6 +25,7 @@ const TABS = [
 // rollup isn't relevant to a single teacher's own house view.
 const KPI_TABS = [
   { id: 'kpis', label: 'Network KPIs', icon: 'trend' },
+  { id: 'documents', label: 'Documents', icon: 'folder' },
 ];
 
 const ADMIN_TABS = [
@@ -326,6 +328,13 @@ export default function Shell({ profile, onProfileUpdate }) {
             <SettingsView />
           ) : tab === 'kpis' && (isAdmin || isAccountHolder) ? (
             <KPIView sites={sites.filter((s) => accessibleSiteIds.includes(s.id))} profile={activeProfile} />
+          ) : tab === 'documents' && (isAdmin || isAccountHolder) ? (
+            <DocumentsView
+              sites={sites.filter((s) => accessibleSiteIds.includes(s.id))}
+              profile={activeProfile}
+              isAdmin={isAdmin}
+              readOnly={isPreviewing}
+            />
           ) : tab === 'alerts' ? (
             <AlertsView profile={activeProfile} accessibleSiteIds={accessibleSiteIds} />
           ) : selectedSiteId ? (
