@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient.js';
 import Icon from '../Icon.jsx';
+import { SectionHeader, EmptyState, Avatar } from '../ui.jsx';
 
 const SUBTABS = [
   { id: 'staff', label: 'Staff & Logins', icon: 'badge' },
@@ -27,7 +28,23 @@ function genPassword() {
   return out;
 }
 
-const ROLE_LABEL = { admin: 'Network Admin', director: 'Site Director', teacher: 'Teacher' };
+const ROLE_LABEL = { admin: 'Network Admin', account_holder: 'Site Director', teacher: 'Teacher' };
+
+// supabase-js only gives a generic "non-2xx status code" message on function errors —
+// the real message our function sent lives in the raw response body, on error.context.
+async function readFnError(data, fnError, fallback) {
+  if (data?.error) return data.error;
+  if (fnError) {
+    try {
+      const body = await fnError.context.json();
+      if (body?.error) return body.error;
+    } catch {
+      // ignore — fall through to generic message below
+    }
+    return fnError.message || fallback;
+  }
+  return fallback;
+}
 
 function SubNav({ sub, setSub }) {
   return (
@@ -66,12 +83,13 @@ function Modal({ onClose, children, width = 380 }) {
 /* ---------------- Staff & Logins ---------------- */
 
 function emptyStaffDraft() {
-  return { full_name: '', email: '', role: 'teacher', site_id: '', staff_title: '', password: genPassword() };
+  return { full_name: '', email: '', role: 'teacher', site_id: '', site_ids: [], staff_title: '', password: genPassword() };
 }
 
 function StaffPanel() {
   const [sites, setSites] = useState([]);
   const [staff, setStaff] = useState([]);
+  const [assignments, setAssignments] = useState({}); // profile_id -> [site_id, ...]
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -82,12 +100,19 @@ function StaffPanel() {
 
   async function load() {
     setLoading(true);
-    const [{ data: siteRows }, { data: staffRows }] = await Promise.all([
+    const [{ data: siteRows }, { data: staffRows }, { data: assignRows }] = await Promise.all([
       supabase.from('sites').select('id, name, city, state').order('name'),
       supabase.from('profiles').select('id, full_name, role, site_id, staff_title, email').order('full_name'),
+      supabase.from('staff_site_assignments').select('profile_id, site_id'),
     ]);
     setSites(siteRows || []);
     setStaff(staffRows || []);
+    const map = {};
+    (assignRows || []).forEach((a) => {
+      map[a.profile_id] = map[a.profile_id] || [];
+      map[a.profile_id].push(a.site_id);
+    });
+    setAssignments(map);
     setLoading(false);
   }
 
@@ -98,6 +123,10 @@ function StaffPanel() {
   function siteName(id) {
     const s = sites.find((x) => x.id === id);
     return s ? `${s.name} — ${s.city}, ${s.state}` : '—';
+  }
+
+  function siteNames(ids) {
+    return (ids || []).map((id) => sites.find((x) => x.id === id)?.name).filter(Boolean).join(', ');
   }
 
   function openAdd() {
@@ -114,12 +143,20 @@ function StaffPanel() {
       email: person.email || '',
       role: person.role,
       site_id: person.site_id || '',
+      site_ids: assignments[person.id] || [],
       staff_title: person.staff_title || '',
       password: '',
     });
     setError('');
     setEditing(person);
     setAdding(false);
+  }
+
+  function toggleDraftSite(siteId) {
+    setDraft((d) => ({
+      ...d,
+      site_ids: d.site_ids.includes(siteId) ? d.site_ids.filter((id) => id !== siteId) : [...d.site_ids, siteId],
+    }));
   }
 
   function close() {
@@ -134,8 +171,12 @@ function StaffPanel() {
       setError('Name and email are required.');
       return;
     }
-    if (draft.role !== 'admin' && !draft.site_id) {
-      setError('Directors and teachers need a house assigned.');
+    if (draft.role === 'teacher' && !draft.site_id) {
+      setError('Teachers need a house assigned.');
+      return;
+    }
+    if (draft.role === 'account_holder' && draft.site_ids.length === 0) {
+      setError('Site Directors need at least one house assigned.');
       return;
     }
     setSaving(true);
@@ -145,13 +186,14 @@ function StaffPanel() {
         password: draft.password,
         full_name: draft.full_name.trim(),
         role: draft.role,
-        site_id: draft.role === 'admin' ? null : draft.site_id,
+        site_id: draft.role === 'teacher' ? draft.site_id : null,
+        site_ids: draft.role === 'account_holder' ? draft.site_ids : undefined,
         staff_title: draft.staff_title.trim() || null,
       },
     });
     setSaving(false);
     if (fnError || data?.error) {
-      setError(data?.error || fnError.message || 'Something went wrong creating that login.');
+      setError(await readFnError(data, fnError, 'Something went wrong creating that login.'));
       return;
     }
     setCreatedInfo({ email: draft.email.trim(), password: draft.password, full_name: draft.full_name.trim() });
@@ -163,8 +205,12 @@ function StaffPanel() {
       setError('Name is required.');
       return;
     }
-    if (draft.role !== 'admin' && !draft.site_id) {
-      setError('Directors and teachers need a house assigned.');
+    if (draft.role === 'teacher' && !draft.site_id) {
+      setError('Teachers need a house assigned.');
+      return;
+    }
+    if (draft.role === 'account_holder' && draft.site_ids.length === 0) {
+      setError('Site Directors need at least one house assigned.');
       return;
     }
     setSaving(true);
@@ -173,15 +219,29 @@ function StaffPanel() {
       .update({
         full_name: draft.full_name.trim(),
         role: draft.role,
-        site_id: draft.role === 'admin' ? null : draft.site_id,
+        site_id: draft.role === 'teacher' ? draft.site_id : null,
         staff_title: draft.staff_title.trim() || null,
       })
       .eq('id', editing.id);
-    setSaving(false);
     if (dbError) {
+      setSaving(false);
       setError(dbError.message);
       return;
     }
+    // Keep the multi-house assignment table in sync — simplest correct approach
+    // is to clear this person's rows and re-insert whatever's currently checked.
+    await supabase.from('staff_site_assignments').delete().eq('profile_id', editing.id);
+    if (draft.role === 'account_holder' && draft.site_ids.length) {
+      const { error: assignErr } = await supabase
+        .from('staff_site_assignments')
+        .insert(draft.site_ids.map((site_id) => ({ profile_id: editing.id, site_id })));
+      if (assignErr) {
+        setSaving(false);
+        setError(assignErr.message);
+        return;
+      }
+    }
+    setSaving(false);
     close();
     load();
   }
@@ -190,24 +250,31 @@ function StaffPanel() {
 
   return (
     <div className="surface" style={{ padding: 20, maxWidth: 780 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-        <h2 className="font-display" style={{ fontSize: 17, fontWeight: 700 }}>Staff &amp; Logins</h2>
-        <button className="btn btn-primary btn-sm" onClick={openAdd}>+ Add Staff Login</button>
-      </div>
-      <div style={{ fontSize: 12, color: 'var(--ink-faint)', marginBottom: 10 }}>
-        This is where a staff member gets an actual sign-in and gets assigned to a house. Once someone is added here, they'll show up in that house's Credential Tracker — add their fingerprint/CPR/medical dates there and this list will automatically flag Valid, Expiring, or Expired.
-      </div>
+      <SectionHeader
+        icon="badge"
+        tone="accent"
+        title="Staff & Logins"
+        subtitle="This is where a staff member gets an actual sign-in and gets assigned to a house. Once someone is added here, they'll show up in that house's Credential Tracker — add their fingerprint/CPR/medical dates there and this list will automatically flag Valid, Expiring, or Expired."
+        action={<button className="btn btn-primary btn-sm" onClick={openAdd}>+ Add Staff Login</button>}
+      />
 
       <div className="divide-token">
-        {staff.length === 0 && <div style={{ padding: '14px 0', color: 'var(--ink-faint)', fontSize: 13 }}>No staff logins yet.</div>}
+        {staff.length === 0 && <EmptyState icon="badge" tone="taupe" title="No staff logins yet" hint='Use "+ Add Staff Login" above to create one.' />}
         {staff.map((s) => (
           <div key={s.id} style={{ padding: '12px 0', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <Avatar name={s.full_name} tone={s.role === 'admin' ? 'navy' : 'sage'} size={32} />
             <div style={{ minWidth: 160, flex: 1 }}>
               <div style={{ fontSize: 13.5, fontWeight: 700 }}>{s.full_name}</div>
               <div style={{ fontSize: 11.5, color: 'var(--ink-faint)' }}>{s.email}</div>
             </div>
             <span className="chip chip-accent">{ROLE_LABEL[s.role] || s.role}</span>
-            <span className="chip chip-sage" style={{ minWidth: 0 }}>{s.site_id ? siteName(s.site_id) : 'All houses'}</span>
+            <span className="chip chip-sage" style={{ minWidth: 0 }}>
+              {s.role === 'admin'
+                ? 'All houses'
+                : s.role === 'account_holder'
+                ? siteNames(assignments[s.id]) || 'No houses assigned'
+                : siteName(s.site_id)}
+            </span>
             {s.staff_title && <span className="chip chip-neutral">{s.staff_title}</span>}
             <button className="btn btn-ghost btn-sm" onClick={() => openEdit(s)}>Edit</button>
           </div>
@@ -244,31 +311,50 @@ function StaffPanel() {
                   <label style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--ink-soft)' }}>Email {editing && '(cannot be changed here)'}</label>
                   <input className="field" type="email" disabled={!!editing} style={{ marginTop: 4 }} value={draft.email} onChange={(e) => setDraft((d) => ({ ...d, email: e.target.value }))} />
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div>
-                    <label style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--ink-soft)' }}>Role</label>
-                    <select className="field" style={{ marginTop: 4 }} value={draft.role} onChange={(e) => setDraft((d) => ({ ...d, role: e.target.value }))}>
-                      <option value="teacher">Teacher</option>
-                      <option value="director">Site Director</option>
-                      <option value="admin">Network Admin</option>
-                    </select>
-                  </div>
+                <div>
+                  <label style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--ink-soft)' }}>Role</label>
+                  <select className="field" style={{ marginTop: 4 }} value={draft.role} onChange={(e) => setDraft((d) => ({ ...d, role: e.target.value }))}>
+                    <option value="teacher">Teacher — one house</option>
+                    <option value="account_holder">Site Director — one or more houses</option>
+                    <option value="admin">Network Admin — every house</option>
+                  </select>
+                </div>
+
+                {draft.role === 'admin' && (
+                  <div style={{ fontSize: 11.5, color: 'var(--ink-faint)' }}>Network admins automatically see every house — no house to pick.</div>
+                )}
+
+                {draft.role === 'teacher' && (
                   <div>
                     <label style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--ink-soft)' }}>House</label>
                     <select
                       className="field"
                       style={{ marginTop: 4 }}
                       value={draft.site_id}
-                      disabled={draft.role === 'admin'}
                       onChange={(e) => setDraft((d) => ({ ...d, site_id: e.target.value }))}
                     >
-                      <option value="">{draft.role === 'admin' ? 'All houses' : 'Select a house…'}</option>
+                      <option value="">Select a house…</option>
                       {sites.map((s) => (
                         <option key={s.id} value={s.id}>{s.name}</option>
                       ))}
                     </select>
                   </div>
-                </div>
+                )}
+
+                {draft.role === 'account_holder' && (
+                  <div>
+                    <label style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--ink-soft)' }}>Houses this Site Director covers</label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6, border: '1px solid var(--border-strong)', borderRadius: 10, padding: 10, maxHeight: 160, overflowY: 'auto' }}>
+                      {sites.length === 0 && <div style={{ fontSize: 12, color: 'var(--ink-faint)' }}>No houses set up yet.</div>}
+                      {sites.map((s) => (
+                        <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, cursor: 'pointer' }}>
+                          <input type="checkbox" checked={draft.site_ids.includes(s.id)} onChange={() => toggleDraftSite(s.id)} />
+                          {s.name} — {s.city}, {s.state}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--ink-soft)' }}>Staff title (optional)</label>
                   <input className="field" style={{ marginTop: 4 }} placeholder="e.g. Lead Teacher" value={draft.staff_title} onChange={(e) => setDraft((d) => ({ ...d, staff_title: e.target.value }))} />
@@ -393,7 +479,7 @@ function RegulationsPanel() {
     });
     setAnalyzingId(null);
     if (fnError || data?.error) {
-      setAnalyzeMsg(data?.error || fnError.message || 'Something went wrong analyzing that document.');
+      setAnalyzeMsg(await readFnError(data, fnError, 'Something went wrong analyzing that document.'));
       return;
     }
     setAnalyzeMsg(`Drafted ${data.count} requirement${data.count === 1 ? '' : 's'} — review them below before they go live.`);
@@ -526,15 +612,15 @@ function RegulationsPanel() {
       ) : (
         <div style={{ display: 'grid', gap: 12 }}>
           <div className="surface" style={{ padding: 20, maxWidth: 780 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <h2 className="font-display" style={{ fontSize: 16, fontWeight: 700 }}>{selectedState} — Regulation Documents</h2>
-              <button className="btn btn-primary btn-sm" onClick={() => { setShowUpload(true); setError(''); }}>+ Upload Document</button>
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--ink-faint)', marginBottom: 10 }}>
-              Keep the actual state licensing regulations on file here for reference.
-            </div>
+            <SectionHeader
+              icon="book"
+              tone="sage"
+              title={`${selectedState} — Regulation Documents`}
+              subtitle="Keep the actual state licensing regulations on file here for reference."
+              action={<button className="btn btn-primary btn-sm" onClick={() => { setShowUpload(true); setError(''); }}>+ Upload Document</button>}
+            />
             <div className="divide-token">
-              {docs.length === 0 && <div style={{ padding: '10px 0', color: 'var(--ink-faint)', fontSize: 13 }}>No documents uploaded yet.</div>}
+              {docs.length === 0 && <EmptyState icon="book" tone="taupe" title="No documents uploaded yet" />}
               {docs.map((d) => {
                 const isPdf = d.file_name.toLowerCase().endsWith('.pdf');
                 return (
@@ -566,10 +652,12 @@ function RegulationsPanel() {
 
           {reqs.some((r) => r.status === 'suggested') && (
             <div className="surface" style={{ padding: 20, maxWidth: 780, borderColor: 'var(--sage)' }}>
-              <h2 className="font-display" style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Suggested — Needs Your Review</h2>
-              <div style={{ fontSize: 12, color: 'var(--ink-faint)', marginBottom: 10 }}>
-                Drafted from an uploaded document. Nothing here affects the Compliance Tracker until you approve it.
-              </div>
+              <SectionHeader
+                icon="bell"
+                tone="warn"
+                title="Suggested — Needs Your Review"
+                subtitle="Drafted from an uploaded document. Nothing here affects the Compliance Tracker until you approve it."
+              />
               <div className="divide-token">
                 {reqs.filter((r) => r.status === 'suggested').map((r) => (
                   <div key={r.id} style={{ padding: '11px 0', display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -599,16 +687,16 @@ function RegulationsPanel() {
           )}
 
           <div className="surface" style={{ padding: 20, maxWidth: 780 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <h2 className="font-display" style={{ fontSize: 16, fontWeight: 700 }}>{selectedState} — Compliance Requirements</h2>
-              <button className="btn btn-primary btn-sm" onClick={openAddReq}>+ Add Requirement</button>
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--ink-faint)', marginBottom: 10 }}>
-              These drive what the Compliance Tracker checks for every house in {selectedState} — staff credentials, annual training hours, or the house's own license renewal.
-            </div>
+            <SectionHeader
+              icon="badge"
+              tone="accent"
+              title={`${selectedState} — Compliance Requirements`}
+              subtitle={`These drive what the Compliance Tracker checks for every house in ${selectedState} — staff credentials, annual training hours, or the house's own license renewal.`}
+              action={<button className="btn btn-primary btn-sm" onClick={openAddReq}>+ Add Requirement</button>}
+            />
             <div className="divide-token">
               {reqs.filter((r) => r.status !== 'suggested').length === 0 && (
-                <div style={{ padding: '10px 0', color: 'var(--ink-faint)', fontSize: 13 }}>No requirements yet.</div>
+                <EmptyState icon="badge" tone="taupe" title="No requirements yet" />
               )}
               {reqs.filter((r) => r.status !== 'suggested').map((r) => (
                 <div key={r.id} style={{ padding: '11px 0', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -790,16 +878,16 @@ function HousesPanel() {
 
   return (
     <div className="surface" style={{ padding: 20, maxWidth: 760 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-        <h2 className="font-display" style={{ fontSize: 17, fontWeight: 700 }}>Houses</h2>
-        <button className="btn btn-primary btn-sm" onClick={openAdd}>+ Add House</button>
-      </div>
-      <div style={{ fontSize: 12, color: 'var(--ink-faint)', marginBottom: 10 }}>
-        Adding a house here automatically sets up its capacity limits (2 infants / 2 young toddlers / 12 total) and makes it available in the house dropdown right away.
-      </div>
+      <SectionHeader
+        icon="house"
+        tone="sage"
+        title="Houses"
+        subtitle="Adding a house here automatically sets up its capacity limits (2 infants / 2 young toddlers / 12 total) and makes it available in the house dropdown right away."
+        action={<button className="btn btn-primary btn-sm" onClick={openAdd}>+ Add House</button>}
+      />
 
       <div className="divide-token">
-        {sites.length === 0 && <div style={{ padding: '14px 0', color: 'var(--ink-faint)', fontSize: 13 }}>No houses yet.</div>}
+        {sites.length === 0 && <EmptyState icon="house" tone="taupe" title="No houses yet" hint='Use "+ Add House" above to create one.' />}
         {sites.map((s) => (
           <div key={s.id} style={{ padding: '12px 0', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ minWidth: 160, flex: 1 }}>
@@ -915,10 +1003,12 @@ function ChecklistItemsPanel() {
 
   return (
     <div className="surface" style={{ padding: 20, maxWidth: 720 }}>
-      <h2 className="font-display" style={{ fontSize: 17, fontWeight: 700, marginBottom: 6 }}>Daily Safety Checklist Items</h2>
-      <div style={{ fontSize: 12, color: 'var(--ink-faint)', marginBottom: 14 }}>
-        These are the items every house checks off each morning. Turning an item off removes it from future checklists without deleting past history.
-      </div>
+      <SectionHeader
+        icon="check"
+        tone="accent"
+        title="Daily Safety Checklist Items"
+        subtitle="These are the items every house checks off each morning. Turning an item off removes it from future checklists without deleting past history."
+      />
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
         <input
@@ -1036,10 +1126,12 @@ function AuditItemsPanel() {
 
   return (
     <div className="surface" style={{ padding: 20, maxWidth: 720 }}>
-      <h2 className="font-display" style={{ fontSize: 17, fontWeight: 700, marginBottom: 6 }}>{template.name} — Pop-In Audit Items</h2>
-      <div style={{ fontSize: 12, color: 'var(--ink-faint)', marginBottom: 14 }}>
-        These are the items checked during an admin audit / pop-in visit at any house.
-      </div>
+      <SectionHeader
+        icon="clipboard"
+        tone="accent"
+        title={`${template.name} — Pop-In Audit Items`}
+        subtitle="These are the items checked during an admin audit / pop-in visit at any house."
+      />
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
         <input
