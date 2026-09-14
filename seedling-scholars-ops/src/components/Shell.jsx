@@ -19,8 +19,8 @@ const TABS = [
   { id: 'audits', label: 'Audit History', icon: 'clipboard' },
 ];
 
-// Shown only to admin and account holders — a network-level rollup isn't
-// relevant to a single director/teacher's own house view.
+// Shown only to admin and Site Directors (account_holder) — a network-level
+// rollup isn't relevant to a single teacher's own house view.
 const KPI_TABS = [
   { id: 'kpis', label: 'Network KPIs', icon: 'trend' },
 ];
@@ -29,7 +29,7 @@ const ADMIN_TABS = [
   { id: 'settings', label: 'Settings', icon: 'gear' },
 ];
 
-const ROLE_LABEL = { admin: 'Network Admin', account_holder: 'Account Holder', director: 'Site Director', teacher: 'Teacher' };
+const ROLE_LABEL = { admin: 'Network Admin', account_holder: 'Site Director', teacher: 'Teacher' };
 const BANNER_HEIGHT = 44;
 
 export default function Shell({ profile }) {
@@ -96,7 +96,7 @@ export default function Shell({ profile }) {
       } else {
         setMySiteIds(null);
         setSelectedSiteId((prev) => {
-          if (activeProfile.role === 'director' || activeProfile.role === 'teacher') return activeProfile.site_id || '';
+          if (activeProfile.role === 'teacher') return activeProfile.site_id || '';
           if (activeProfile.role === 'admin') return sites.some((s) => s.id === prev) ? prev : sites[0]?.id || '';
           return prev;
         });
@@ -110,8 +110,8 @@ export default function Shell({ profile }) {
   }, [activeProfile.id, activeProfile.role, sites.length]);
 
   // The houses this identity can switch between: every house for an admin,
-  // just their assigned ones for an account holder, none (single fixed
-  // house shown separately below) for a director or teacher.
+  // just their assigned ones for a Site Director (account_holder), none
+  // (single fixed house shown separately below) for a teacher.
   const switchableSites = isAdmin ? sites : isAccountHolder ? sites.filter((s) => (mySiteIds || []).includes(s.id)) : [];
   const accessibleSiteIds = isAdmin ? sites.map((s) => s.id) : isAccountHolder ? (mySiteIds || []) : activeProfile.site_id ? [activeProfile.site_id] : [];
 
