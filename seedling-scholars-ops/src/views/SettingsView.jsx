@@ -810,7 +810,7 @@ function HousesPanel() {
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(null); // site row or {} for new
-  const [draft, setDraft] = useState({ name: '', slug: '', city: '', state: '', licensing_agency: '' });
+  const [draft, setDraft] = useState({ name: '', slug: '', street_address: '', city: '', state: '', zip: '', licensing_agency: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -826,14 +826,22 @@ function HousesPanel() {
   }, []);
 
   function openAdd() {
-    setDraft({ name: '', slug: '', city: '', state: '', licensing_agency: '' });
+    setDraft({ name: '', slug: '', street_address: '', city: '', state: '', zip: '', licensing_agency: '' });
     setError('');
     setEditing(null);
     setAdding(true);
   }
 
   function openEdit(site) {
-    setDraft({ name: site.name, slug: site.slug, city: site.city || '', state: site.state || '', licensing_agency: site.licensing_agency || '' });
+    setDraft({
+      name: site.name,
+      slug: site.slug,
+      street_address: site.street_address || '',
+      city: site.city || '',
+      state: site.state || '',
+      zip: site.zip || '',
+      licensing_agency: site.licensing_agency || '',
+    });
     setError('');
     setEditing(site);
     setAdding(false);
@@ -855,8 +863,10 @@ function HousesPanel() {
     const payload = {
       name: draft.name.trim(),
       slug,
+      street_address: draft.street_address.trim() || null,
       city: draft.city.trim() || null,
       state: draft.state.trim() || null,
+      zip: draft.zip.trim() || null,
       licensing_agency: draft.licensing_agency.trim() || null,
     };
     let dbError;
@@ -893,7 +903,7 @@ function HousesPanel() {
             <div style={{ minWidth: 160, flex: 1 }}>
               <div style={{ fontSize: 13.5, fontWeight: 700 }}>{s.name}</div>
               <div style={{ fontSize: 11.5, color: 'var(--ink-faint)' }}>
-                {[s.city, s.state].filter(Boolean).join(', ') || 'No location set'}
+                {[s.street_address, [s.city, s.state].filter(Boolean).join(', '), s.zip].filter(Boolean).join(', ') || 'No address set'}
                 {s.licensing_agency ? ` · ${s.licensing_agency}` : ''}
               </div>
             </div>
@@ -919,7 +929,11 @@ function HousesPanel() {
                 <input className="field" style={{ marginTop: 4 }} value={draft.slug} onChange={(e) => setDraft((d) => ({ ...d, slug: e.target.value }))} placeholder="house6-charlotte" />
               </div>
             )}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--ink-soft)' }}>Street address</label>
+              <input className="field" style={{ marginTop: 4 }} value={draft.street_address} onChange={(e) => setDraft((d) => ({ ...d, street_address: e.target.value }))} placeholder="e.g. 123 Maple St" />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 90px', gap: 10 }}>
               <div>
                 <label style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--ink-soft)' }}>City</label>
                 <input className="field" style={{ marginTop: 4 }} value={draft.city} onChange={(e) => setDraft((d) => ({ ...d, city: e.target.value }))} />
@@ -927,6 +941,10 @@ function HousesPanel() {
               <div>
                 <label style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--ink-soft)' }}>State</label>
                 <input className="field" style={{ marginTop: 4 }} value={draft.state} onChange={(e) => setDraft((d) => ({ ...d, state: e.target.value }))} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--ink-soft)' }}>ZIP</label>
+                <input className="field" style={{ marginTop: 4 }} value={draft.zip} onChange={(e) => setDraft((d) => ({ ...d, zip: e.target.value }))} />
               </div>
             </div>
             <div>
