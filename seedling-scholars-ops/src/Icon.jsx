@@ -84,6 +84,14 @@ const PATHS = {
     ['rect', { x: 5, y: 11, width: 14, height: 9, rx: 2 }],
     ['path', { d: 'M8 11V7.5a4 4 0 0 1 8 0V11' }],
   ],
+  folder: [
+    ['path', { d: 'M4 6.5A1.5 1.5 0 0 1 5.5 5h4l2 2.5h7A1.5 1.5 0 0 1 20 9v8.5A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5Z' }],
+  ],
+  upload: [
+    ['path', { d: 'M12 20V8' }],
+    ['path', { d: 'm7 12 5-5 5 5' }],
+    ['path', { d: 'M4 19h16' }],
+  ],
 };
 
 export default function Icon({ name, size = 18, strokeWidth = 1.8, className = '' }) {
