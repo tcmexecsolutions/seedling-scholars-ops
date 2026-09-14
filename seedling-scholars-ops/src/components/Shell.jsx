@@ -10,6 +10,7 @@ import AuditsView from '../views/AuditsView.jsx';
 import SettingsView from '../views/SettingsView.jsx';
 import AlertsView from '../views/AlertsView.jsx';
 import KPIView from '../views/KPIView.jsx';
+import AccountModal from './AccountModal.jsx';
 
 const TABS = [
   { id: 'alerts', label: 'Compliance Alerts', icon: 'bell' },
@@ -32,12 +33,13 @@ const ADMIN_TABS = [
 const ROLE_LABEL = { admin: 'Network Admin', account_holder: 'Site Director', teacher: 'Teacher' };
 const BANNER_HEIGHT = 44;
 
-export default function Shell({ profile }) {
+export default function Shell({ profile, onProfileUpdate }) {
   const realIsAdmin = profile.role === 'admin';
 
   const [sites, setSites] = useState([]);
   const [loadingSites, setLoadingSites] = useState(true);
   const [tab, setTab] = useState('capacity');
+  const [accountOpen, setAccountOpen] = useState(false);
 
   // ---- "View as" read-only preview (admin only) ----
   const [staffOptions, setStaffOptions] = useState([]);
@@ -299,12 +301,25 @@ export default function Shell({ profile }) {
               </div>
             </div>
             {!isPreviewing && (
-              <button className="btn btn-ghost btn-sm" style={{ width: '100%' }} onClick={() => supabase.auth.signOut()}>
-                <Icon name="logout" size={14} /> Sign out
-              </button>
+              <>
+                <button className="btn btn-ghost btn-sm" style={{ width: '100%' }} onClick={() => setAccountOpen(true)}>
+                  <Icon name="user" size={14} /> My Account
+                </button>
+                <button className="btn btn-ghost btn-sm" style={{ width: '100%' }} onClick={() => supabase.auth.signOut()}>
+                  <Icon name="logout" size={14} /> Sign out
+                </button>
+              </>
             )}
           </div>
         </aside>
+
+        {accountOpen && (
+          <AccountModal
+            profile={profile}
+            onClose={() => setAccountOpen(false)}
+            onProfileUpdate={onProfileUpdate}
+          />
+        )}
 
         <main style={{ flex: 1, padding: 12 }}>
           {tab === 'settings' && isAdmin ? (
