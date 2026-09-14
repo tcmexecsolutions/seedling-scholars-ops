@@ -76,6 +76,14 @@ const PATHS = {
     ['path', { d: 'm7 10 5 5 5-5' }],
     ['path', { d: 'M4 19h16' }],
   ],
+  user: [
+    ['circle', { cx: 12, cy: 8, r: 3.6 }],
+    ['path', { d: 'M4.5 20c1.2-4 4-6 7.5-6s6.3 2 7.5 6' }],
+  ],
+  lock: [
+    ['rect', { x: 5, y: 11, width: 14, height: 9, rx: 2 }],
+    ['path', { d: 'M8 11V7.5a4 4 0 0 1 8 0V11' }],
+  ],
 };
 
 export default function Icon({ name, size = 18, strokeWidth = 1.8, className = '' }) {

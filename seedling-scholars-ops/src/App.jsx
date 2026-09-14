@@ -2,11 +2,13 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from './supabaseClient.js';
 import Login from './components/Login.jsx';
 import Shell from './components/Shell.jsx';
+import ResetPassword from './components/ResetPassword.jsx';
 
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = loading, null = signed out
   const [profile, setProfile] = useState(null);
   const [profileError, setProfileError] = useState('');
+  const [recoveryMode, setRecoveryMode] = useState(false);
 
   const loadProfile = useCallback(async (userId) => {
     const { data, error } = await supabase
@@ -29,6 +31,9 @@ export default function App() {
       if (session?.user) loadProfile(session.user.id);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (_event === 'PASSWORD_RECOVERY') {
+        setRecoveryMode(true);
+      }
       setSession(session);
       if (session?.user) {
         loadProfile(session.user.id);
@@ -38,6 +43,10 @@ export default function App() {
     });
     return () => sub.subscription.unsubscribe();
   }, [loadProfile]);
+
+  if (recoveryMode) {
+    return <ResetPassword onDone={() => setRecoveryMode(false)} />;
+  }
 
   if (session === undefined) {
     return (
@@ -65,5 +74,10 @@ export default function App() {
     );
   }
 
-  return <Shell profile={profile} />;
+  return (
+    <Shell
+      profile={profile}
+      onProfileUpdate={(updates) => setProfile((p) => ({ ...p, ...updates }))}
+    />
+  );
 }
