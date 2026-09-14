@@ -291,7 +291,7 @@ export default function CredentialsView({ siteId, isAdmin, readOnly }) {
                   <div style={{ minWidth: 130 }}>
                     <div style={{ fontSize: 13, fontWeight: 700 }}>{s.full_name}</div>
                     <div style={{ fontSize: 11, color: 'var(--ink-faint)' }}>
-                      {s.staff_title || (s.role === 'director' ? 'Site Director' : 'Teacher')}
+                      {s.staff_title || (s.role === 'account_holder' ? 'Site Director' : 'Teacher')}
                       {blocked && <span style={{ color: 'var(--bad)', fontWeight: 700 }}> · Blocked from shift</span>}
                     </div>
                   </div>
